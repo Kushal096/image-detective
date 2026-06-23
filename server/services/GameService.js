@@ -1,9 +1,9 @@
-import { GameState, ROUND_STARTING_DELAY_MS } from '../config/constants.js';
-import { env } from '../config/env.js';
-import { newUuid } from '../utils/ids.js';
-import { createLogger } from '../utils/logger.js';
+import { GameState, ROUND_STARTING_DELAY_MS } from "../config/constants.js";
+import { env } from "../config/env.js";
+import { newUuid } from "../utils/ids.js";
+import { createLogger } from "../utils/logger.js";
 
-const log = createLogger('game');
+const log = createLogger("game");
 
 /**
  * The orchestration core. Coordinates rooms, the authoritative timer, the AI
@@ -13,7 +13,14 @@ const log = createLogger('game');
  * of truth; clients only render the snapshots we emit.
  */
 export class GameService {
-  constructor({ roomManager, timerManager, queue, broadcaster, scoringService, store }) {
+  constructor({
+    roomManager,
+    timerManager,
+    queue,
+    broadcaster,
+    scoringService,
+    store,
+  }) {
     this.rooms = roomManager;
     this.timers = timerManager;
     this.queue = queue;
@@ -33,13 +40,13 @@ export class GameService {
   /** Adds a player to a room (or fails with a typed reason). */
   joinRoom({ room, name, socketId }) {
     if (room.state !== GameState.WAITING_ROOM) {
-      return { error: 'Game already in progress', code: 'IN_PROGRESS' };
+      return { error: "Game already in progress", code: "IN_PROGRESS" };
     }
     if (room.playerCount >= env.game.maxPlayersPerRoom) {
-      return { error: 'Room is full', code: 'ROOM_FULL' };
+      return { error: "Room is full", code: "ROOM_FULL" };
     }
     if (room.hasName(name)) {
-      return { error: 'Name already taken in this room', code: 'NAME_TAKEN' };
+      return { error: "Name already taken in this room", code: "NAME_TAKEN" };
     }
     const player = room.addPlayer({ id: newUuid(), name, socketId });
     return { player };
@@ -48,7 +55,7 @@ export class GameService {
   /** Re-binds an existing player identity to a fresh socket after reconnect. */
   rejoinRoom({ room, playerId, socketId }) {
     const player = room.getPlayer(playerId);
-    if (!player) return { error: 'Session not found', code: 'NO_SESSION' };
+    if (!player) return { error: "Session not found", code: "NO_SESSION" };
     player.socketId = socketId;
     player.connected = true;
     return { player };
@@ -62,9 +69,9 @@ export class GameService {
     return current;
   }
 
-  async setTarget({ room, embedding, previewDataUrl }) {
+  async setTarget({ room, embedding, previewDataUrl, hintDataUrl }) {
     const round = this.#ensureUpcomingRound(room);
-    round.setTarget(embedding, previewDataUrl);
+    round.setTarget(embedding, previewDataUrl, hintDataUrl);
     this.bus.roomState(room);
     return round;
   }
@@ -72,10 +79,10 @@ export class GameService {
   startRound({ room }) {
     const round = room.currentRound;
     if (!round || !round.hasTarget) {
-      return { error: 'Set a target image before starting', code: 'NO_TARGET' };
+      return { error: "Set a target image before starting", code: "NO_TARGET" };
     }
     if (room.state === GameState.SEARCHING) {
-      return { error: 'Round already running', code: 'ALREADY_RUNNING' };
+      return { error: "Round already running", code: "ALREADY_RUNNING" };
     }
 
     room.setState(GameState.ROUND_STARTING);
@@ -97,7 +104,10 @@ export class GameService {
       onTick: (remaining) => this.bus.timerTick(room, remaining),
       onExpire: () => this.#closeSubmissions(room),
     });
-    log.info('round searching', { code: room.code, round: room.currentRound.index });
+    log.info("round searching", {
+      code: room.code,
+      round: room.currentRound.index,
+    });
   }
 
   skipRound({ room }) {
@@ -107,7 +117,11 @@ export class GameService {
   }
 
   #closeSubmissions(room) {
-    if (room.state === GameState.RESULTS || room.state === GameState.GAME_FINISHED) return;
+    if (
+      room.state === GameState.RESULTS ||
+      room.state === GameState.GAME_FINISHED
+    )
+      return;
     room.setState(GameState.SUBMISSIONS_CLOSED);
     this.bus.stateChanged(room);
 
@@ -129,13 +143,17 @@ export class GameService {
     room.setState(GameState.RESULTS);
     this.bus.stateChanged(room);
     this.bus.leaderboard(room);
-    log.info('round results', { code: room.code, round: room.currentRound?.index });
+    log.info("round results", {
+      code: room.code,
+      round: room.currentRound?.index,
+    });
   }
 
   nextRound({ room }) {
     if (room.isLastRound) {
       return this.endGame({ room });
     }
+    room.createNextRound();
     room.setState(GameState.WAITING_ROOM);
     this.bus.stateChanged(room);
     return { ok: true };
@@ -161,7 +179,7 @@ export class GameService {
         leaderboard: room.leaderboard(),
       });
     } catch (err) {
-      log.error('persist failed', err.message);
+      log.error("persist failed", err.message);
     }
   }
 
@@ -173,13 +191,13 @@ export class GameService {
   enqueueSubmission({ room, player, buffer }) {
     const round = room.currentRound;
     if (room.state !== GameState.SEARCHING || !round) {
-      return { error: 'Submissions are closed', code: 'CLOSED' };
+      return { error: "Submissions are closed", code: "CLOSED" };
     }
     if (round.remainingSeconds() <= 0) {
-      return { error: 'Time is up', code: 'TIME_UP' };
+      return { error: "Time is up", code: "TIME_UP" };
     }
     if (round.hasSubmitted(player.id)) {
-      return { error: 'You already submitted this round', code: 'DUPLICATE' };
+      return { error: "You already submitted this round", code: "DUPLICATE" };
     }
 
     round.lockPending(player.id);
@@ -195,7 +213,10 @@ export class GameService {
 
   /** Worker-pool processor: scores one job and applies the result. */
   processSubmission = async (job) => {
-    const { similarity, score } = await this.scoring.score(job.buffer, job.targetEmbedding);
+    const { similarity, score } = await this.scoring.score(
+      job.buffer,
+      job.targetEmbedding,
+    );
     this.#applyScore(job.roomCode, job.playerId, { similarity, score });
   };
 
@@ -209,7 +230,11 @@ export class GameService {
     round.recordSubmission(playerId, { score, similarity });
     player.totalScore += score;
 
-    this.bus.scoredToPlayer(player.socketId, { score, similarity, totalScore: player.totalScore });
+    this.bus.scoredToPlayer(player.socketId, {
+      score,
+      similarity,
+      totalScore: player.totalScore,
+    });
     this.bus.leaderboard(room);
     this.bus.roomState(room);
 
@@ -222,7 +247,11 @@ export class GameService {
     if (!round) return;
     round.releasePending(playerId);
     const player = room.getPlayer(playerId);
-    this.bus.errorToSocket(player?.socketId, 'Scoring failed, please retry', 'SCORE_FAILED');
+    this.bus.errorToSocket(
+      player?.socketId,
+      "Scoring failed, please retry",
+      "SCORE_FAILED",
+    );
     this.#maybeFinishProcessing(room);
   }
 

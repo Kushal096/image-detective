@@ -1,8 +1,8 @@
-import { env } from '../config/env.js';
-import { createLogger } from '../utils/logger.js';
-import { preprocessForClip } from './imageProcessor.js';
+import { env } from "../config/env.js";
+import { createLogger } from "../utils/logger.js";
+import { preprocessForClip } from "./imageProcessor.js";
 
-const log = createLogger('clip');
+const log = createLogger("clip");
 
 /**
  * Lazily-loaded singleton wrapper around the CLIP vision encoder (Transformers.js
@@ -25,9 +25,13 @@ class ClipModel {
     if (this.#ready) return this.#ready;
 
     this.#ready = (async () => {
-      log.info('loading CLIP model', { model: env.ai.model });
-      const { AutoProcessor, CLIPVisionModelWithProjection, RawImage, env: tfEnv } =
-        await import('@xenova/transformers');
+      log.info("loading CLIP model", { model: env.ai.model });
+      const {
+        AutoProcessor,
+        CLIPVisionModelWithProjection,
+        RawImage,
+        env: tfEnv,
+      } = await import("@xenova/transformers");
 
       // Allow remote model download; cache locally between runs.
       tfEnv.allowLocalModels = true;
@@ -35,8 +39,10 @@ class ClipModel {
 
       this.#RawImage = RawImage;
       this.#processor = await AutoProcessor.from_pretrained(env.ai.model);
-      this.#model = await CLIPVisionModelWithProjection.from_pretrained(env.ai.model);
-      log.info('CLIP model ready');
+      this.#model = await CLIPVisionModelWithProjection.from_pretrained(
+        env.ai.model,
+      );
+      log.info("CLIP model ready");
     })();
 
     return this.#ready;
@@ -70,10 +76,17 @@ class ClipModel {
    * similar vectors, so the scoring pipeline remains exercisable end-to-end.
    */
   async #mockEmbed(buffer) {
-    const { data } = await preprocessForClip(buffer);
+    const { data, info } = await preprocessForClip(buffer);
     const vec = new Float32Array(this.#dim);
-    for (let i = 0; i < data.length; i += 1) {
-      vec[i % this.#dim] += data[i];
+    const { width, height, channels } = info;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const px = (y * width + x) * channels;
+        const bucket = ((y >> 4) * 14 + (x >> 4)) % this.#dim;
+        for (let c = 0; c < channels; c += 1) {
+          vec[bucket] += data[px + c];
+        }
+      }
     }
     return l2normalize(vec);
   }
