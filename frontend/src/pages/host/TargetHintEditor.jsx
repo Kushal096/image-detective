@@ -60,7 +60,7 @@ export const TargetHintEditor = ({
       aria-modal="true"
       aria-labelledby="hint-editor-title"
     >
-      <div className="w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-md border border-border bg-surface shadow-[var(--shadow-glow-blue)]">
+      <div className="w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-md border border-border bg-surface shadow-(--shadow-glow-blue)">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
             <h2
