@@ -125,6 +125,7 @@ export class Room {
   /** Client-safe room snapshot. Host-only fields are added by the caller. */
   toPublic() {
     const round = this.currentRound;
+    const hintVisible = PLAYER_HINT_VISIBLE_STATES.has(this.state);
     return {
       code: this.code,
       state: this.state,
@@ -132,10 +133,18 @@ export class Room {
       totalRounds: this.totalRounds,
       currentRound: this.currentRoundIndex + 1,
       hasTarget: round?.hasTarget ?? false,
-      targetHint: round?.targetHint ?? null,
+      targetHint: hintVisible ? (round?.targetHint ?? null) : null,
       remainingSeconds: round ? round.remainingSeconds() : this.roundSeconds,
       players: [...this.players.values()].map((p) => p.toPublic()),
       leaderboard: this.leaderboard(),
     };
   }
 }
+
+/** Player hint is revealed only after the host starts the round. */
+const PLAYER_HINT_VISIBLE_STATES = new Set([
+  GameState.ROUND_STARTING,
+  GameState.SEARCHING,
+  GameState.SUBMISSIONS_CLOSED,
+  GameState.AI_PROCESSING,
+]);

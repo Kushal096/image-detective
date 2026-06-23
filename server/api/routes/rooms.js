@@ -7,7 +7,9 @@ import {
   makePreviewDataUrl,
 } from "../../ai/imageProcessor.js";
 import { normalizeRoomCode } from "../../utils/validation.js";
+import { parseHintConfig } from "../../utils/hintConfig.js";
 import { createLogger } from "../../utils/logger.js";
+import sharp from "sharp";
 
 const log = createLogger("api:rooms");
 
@@ -63,10 +65,15 @@ export const createRoomRoutes = ({
             .json({ error: check.reason, code: "BAD_IMAGE" });
         }
 
+        const { width = 1, height = 1 } = await sharp(req.file.buffer)
+          .rotate()
+          .metadata();
+        const hintConfig = parseHintConfig(req.body?.hintConfig, width, height);
+
         const [embedding, preview, hint] = await Promise.all([
           scoringService.embedTarget(req.file.buffer),
           makePreviewDataUrl(req.file.buffer),
-          makePlayerHintDataUrl(req.file.buffer),
+          makePlayerHintDataUrl(req.file.buffer, hintConfig),
         ]);
         await gameService.setTarget({
           room,

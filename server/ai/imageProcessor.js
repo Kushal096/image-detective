@@ -67,12 +67,38 @@ export const makePreviewDataUrl = async (buffer) => {
 /**
  * Produces a blurred, cropped hint for players. Scoring still uses the full
  * original image embedding; this preview is only a visual clue.
+ *
+ * @param {Buffer} buffer
+ * @param {{ crop?: { left: number, top: number, width: number, height: number }, blur?: number } | null} hintConfig
  */
-export const makePlayerHintDataUrl = async (buffer) => {
+export const makePlayerHintDataUrl = async (buffer, hintConfig = null) => {
   const meta = await sharp(buffer).rotate().metadata();
   const w = meta.width ?? 224;
   const h = meta.height ?? 224;
 
+  const blur = hintConfig?.blur ?? 16;
+  const extract = hintConfig?.crop
+    ? {
+        left: hintConfig.crop.left,
+        top: hintConfig.crop.top,
+        width: hintConfig.crop.width,
+        height: hintConfig.crop.height,
+      }
+    : autoCropRegion(buffer, w, h);
+
+  let pipeline = sharp(buffer)
+    .rotate()
+    .extract(extract)
+    .resize(320, 320, { fit: "cover" });
+
+  if (blur > 0) pipeline = pipeline.blur(blur);
+
+  const out = await pipeline.jpeg({ quality: 50 }).toBuffer();
+  return `data:image/jpeg;base64,${out.toString("base64")}`;
+};
+
+/** Fallback crop when the host does not supply a custom region. */
+const autoCropRegion = (buffer, w, h) => {
   const cropFrac = 0.42;
   const cropW = Math.max(1, Math.floor(w * cropFrac));
   const cropH = Math.max(1, Math.floor(h * cropFrac));
@@ -86,18 +112,10 @@ export const makePlayerHintDataUrl = async (buffer) => {
   const left = maxLeft > 0 ? hash % maxLeft : 0;
   const top = maxTop > 0 ? (hash >>> 8) % maxTop : 0;
 
-  const out = await sharp(buffer)
-    .rotate()
-    .extract({
-      left: Math.floor(left),
-      top: Math.floor(top),
-      width: cropW,
-      height: cropH,
-    })
-    .resize(320, 320, { fit: "cover" })
-    .blur(16)
-    .jpeg({ quality: 50 })
-    .toBuffer();
-
-  return `data:image/jpeg;base64,${out.toString("base64")}`;
+  return {
+    left: Math.floor(left),
+    top: Math.floor(top),
+    width: cropW,
+    height: cropH,
+  };
 };

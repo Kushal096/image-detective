@@ -20,34 +20,15 @@ export const Lobby = ({ room, playerId }) => (
       </div>
     </Card>
 
-    {room.targetHint ? (
-      <Card>
-        <p className="font-label text-[10px] uppercase tracking-widest text-text-muted mb-2 text-center">
-          Next target clue
-        </p>
-        <div className="aspect-video rounded-sm border border-border bg-bg overflow-hidden">
-          <img
-            src={room.targetHint}
-            alt="Blurred target clue"
-            className="w-full h-full object-cover scale-105"
-            draggable={false}
-          />
-        </div>
-        <p className="font-body text-xs text-text-muted text-center mt-2">
-          Waiting for the host to start the round…
-        </p>
-      </Card>
-    ) : (
-      <Card className="flex flex-col items-center gap-3 py-8">
-        <Loader2
-          className="size-8 text-secondary animate-spin-slow"
-          aria-hidden
-        />
-        <p className="font-body text-sm text-text-secondary text-center">
-          Waiting for the host to set a target and start the investigation…
-        </p>
-      </Card>
-    )}
+    <Card className="flex flex-col items-center gap-3 py-8">
+      <Loader2
+        className="size-8 text-secondary animate-spin-slow"
+        aria-hidden
+      />
+      <p className="font-body text-sm text-text-secondary text-center">
+        Waiting for the host to start the investigation…
+      </p>
+    </Card>
 
     <Card>
       <CardHeader
