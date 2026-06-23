@@ -1,4 +1,4 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -13,14 +13,14 @@ const toInt = (value, fallback) => {
 
 const toBool = (value, fallback = false) => {
   if (value === undefined) return fallback;
-  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+  return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
 };
 
 export const env = {
-  nodeEnv: process.env.NODE_ENV ?? 'development',
-  isProduction: process.env.NODE_ENV === 'production',
+  nodeEnv: process.env.NODE_ENV ?? "development",
+  isProduction: process.env.NODE_ENV === "production",
   port: toInt(process.env.PORT, 4000),
-  clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
+  clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
 
   game: {
     defaultRoundSeconds: toInt(process.env.DEFAULT_ROUND_SECONDS, 60),
@@ -29,14 +29,19 @@ export const env = {
   },
 
   ai: {
-    model: process.env.AI_MODEL ?? 'Xenova/clip-vit-base-patch32',
+    model: process.env.AI_MODEL ?? "Xenova/clip-vit-base-patch32",
     workerConcurrency: toInt(process.env.AI_WORKER_CONCURRENCY, 2),
     mock: toBool(process.env.AI_MOCK, false),
+    /** When real CLIP fails, use mock embeddings instead of erroring (dev default). */
+    fallbackMock: toBool(
+      process.env.AI_FALLBACK_MOCK,
+      process.env.NODE_ENV !== "production",
+    ),
   },
 
   uploads: {
     maxBytes: toInt(process.env.MAX_UPLOAD_BYTES, 8 * 1024 * 1024),
-    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
   },
 
   firebase: {
@@ -44,7 +49,7 @@ export const env = {
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL || null,
     // Support escaped newlines from .env single-line values.
     privateKey: process.env.FIREBASE_PRIVATE_KEY
-      ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+      ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
       : null,
   },
 };

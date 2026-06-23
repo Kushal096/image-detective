@@ -1,28 +1,33 @@
-import express from 'express';
-import { createServer } from 'node:http';
-import { Server as SocketServer } from 'socket.io';
+import express from "express";
+import { createServer } from "node:http";
+import { Server as SocketServer } from "socket.io";
 
-import { env } from './config/env.js';
-import { createLogger } from './utils/logger.js';
+import { env } from "./config/env.js";
+import { createLogger } from "./utils/logger.js";
 
-import { securityMiddleware, apiLimiter, roomCreationLimiter } from './middleware/security.js';
-import { notFound, errorHandler } from './middleware/errorHandler.js';
-import { createApiRouter } from './api/index.js';
+import {
+  securityMiddleware,
+  apiLimiter,
+  roomCreationLimiter,
+} from "./middleware/security.js";
+import { notFound, errorHandler } from "./middleware/errorHandler.js";
+import { createApiRouter } from "./api/index.js";
 
-import { roomManager } from './rooms/RoomManager.js';
-import { timerManager } from './rooms/TimerManager.js';
-import { SubmissionQueue } from './queue/SubmissionQueue.js';
-import { WorkerPool } from './workers/WorkerPool.js';
-import { Broadcaster } from './sockets/Broadcaster.js';
-import { GameService } from './services/GameService.js';
-import { scoringService } from './ai/scoringService.js';
-import { createPersistenceStore } from './services/persistence/index.js';
+import { roomManager } from "./rooms/RoomManager.js";
+import { timerManager } from "./rooms/TimerManager.js";
+import { SubmissionQueue } from "./queue/SubmissionQueue.js";
+import { WorkerPool } from "./workers/WorkerPool.js";
+import { Broadcaster } from "./sockets/Broadcaster.js";
+import { GameService } from "./services/GameService.js";
+import { scoringService } from "./ai/scoringService.js";
+import { clipProcessClient } from "./ai/ClipProcessClient.js";
+import { createPersistenceStore } from "./services/persistence/index.js";
 
-import { SocketEvents } from './config/constants.js';
-import { registerHostHandlers } from './sockets/handlers/host.js';
-import { registerPlayerHandlers } from './sockets/handlers/player.js';
+import { SocketEvents } from "./config/constants.js";
+import { registerHostHandlers } from "./sockets/handlers/host.js";
+import { registerPlayerHandlers } from "./sockets/handlers/player.js";
 
-const log = createLogger('server');
+const log = createLogger("server");
 
 /**
  * Composition root. Builds the dependency graph explicitly so wiring is visible
@@ -47,20 +52,23 @@ const bootstrap = async () => {
 
   // ── Express app ─────────────────────────────────────
   const app = express();
-  app.disable('x-powered-by');
+  app.disable("x-powered-by");
   app.use(...securityMiddleware());
-  app.use(express.json({ limit: '64kb' }));
-  app.use('/api', apiLimiter);
+  app.use(express.json({ limit: "64kb" }));
+  app.use("/api", apiLimiter);
   // Room creation happens over sockets, but guard the REST surface broadly too.
-  app.use('/api/rooms', roomCreationLimiter);
-  app.use('/api', createApiRouter({ roomManager, gameService, scoringService }));
+  app.use("/api/rooms", roomCreationLimiter);
+  app.use(
+    "/api",
+    createApiRouter({ roomManager, gameService, scoringService }),
+  );
   app.use(notFound);
   app.use(errorHandler);
 
   // ── HTTP + Socket.IO ────────────────────────────────
   const httpServer = createServer(app);
   const io = new SocketServer(httpServer, {
-    cors: { origin: env.clientOrigin, methods: ['GET', 'POST'] },
+    cors: { origin: env.clientOrigin, methods: ["GET", "POST"] },
     connectionStateRecovery: { maxDisconnectionDuration: 2 * 60 * 1000 },
   });
   broadcaster.io = io;
@@ -68,7 +76,9 @@ const bootstrap = async () => {
   io.on(SocketEvents.CONNECTION, (socket) => {
     registerHostHandlers({ socket, gameService, roomManager, broadcaster });
     registerPlayerHandlers({ socket, gameService, roomManager, broadcaster });
-    socket.on(SocketEvents.DISCONNECT, () => gameService.handleDisconnect(socket.id));
+    socket.on(SocketEvents.DISCONNECT, () =>
+      gameService.handleDisconnect(socket.id),
+    );
   });
 
   // ── AI worker pool ──────────────────────────────────
@@ -100,15 +110,16 @@ const bootstrap = async () => {
     clearInterval(reaper);
     timerManager.clearAll();
     await pool.stop();
+    await clipProcessClient.stop();
     io.close();
     httpServer.close(() => process.exit(0));
     setTimeout(() => process.exit(1), 5000).unref();
   };
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 };
 
 bootstrap().catch((err) => {
-  log.error('fatal bootstrap error', err.stack ?? err.message);
+  log.error("fatal bootstrap error", err.stack ?? err.message);
   process.exit(1);
 });

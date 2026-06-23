@@ -1,4 +1,4 @@
-import { MAX_SCORE } from "../config/constants.js";
+import { HINT_REUSE_THRESHOLD, MAX_SCORE } from "../config/constants.js";
 
 /**
  * Cosine similarity between two equal-length numeric vectors.
@@ -31,3 +31,11 @@ export const similarityToScore = (similarity) => {
   const clamped = Math.max(0, Math.min(1, similarity));
   return Math.round(clamped * MAX_SCORE);
 };
+
+/**
+ * Detects submissions that are effectively a reuse of the player clue image
+ * (e.g. a screenshot of the cropped/blurred hint).
+ */
+export const isHintReuse = (hintSimilarity, targetSimilarity) =>
+  hintSimilarity >= HINT_REUSE_THRESHOLD &&
+  hintSimilarity >= targetSimilarity - 0.02;

@@ -71,7 +71,7 @@ export const makePreviewDataUrl = async (buffer) => {
  * @param {Buffer} buffer
  * @param {{ crop?: { left: number, top: number, width: number, height: number }, blur?: number } | null} hintConfig
  */
-export const makePlayerHintDataUrl = async (buffer, hintConfig = null) => {
+export const makePlayerHint = async (buffer, hintConfig = null) => {
   const meta = await sharp(buffer).rotate().metadata();
   const w = meta.width ?? 224;
   const h = meta.height ?? 224;
@@ -94,7 +94,16 @@ export const makePlayerHintDataUrl = async (buffer, hintConfig = null) => {
   if (blur > 0) pipeline = pipeline.blur(blur);
 
   const out = await pipeline.jpeg({ quality: 50 }).toBuffer();
-  return `data:image/jpeg;base64,${out.toString("base64")}`;
+  return {
+    buffer: out,
+    dataUrl: `data:image/jpeg;base64,${out.toString("base64")}`,
+  };
+};
+
+/** @deprecated Use makePlayerHint — kept for compatibility. */
+export const makePlayerHintDataUrl = async (buffer, hintConfig = null) => {
+  const hint = await makePlayerHint(buffer, hintConfig);
+  return hint.dataUrl;
 };
 
 /** Fallback crop when the host does not supply a custom region. */

@@ -69,9 +69,15 @@ export class GameService {
     return current;
   }
 
-  async setTarget({ room, embedding, previewDataUrl, hintDataUrl }) {
+  async setTarget({
+    room,
+    embedding,
+    previewDataUrl,
+    hintDataUrl,
+    hintEmbedding,
+  }) {
     const round = this.#ensureUpcomingRound(room);
-    round.setTarget(embedding, previewDataUrl, hintDataUrl);
+    round.setTarget(embedding, previewDataUrl, hintDataUrl, hintEmbedding);
     this.bus.roomState(room);
     return round;
   }
@@ -206,6 +212,7 @@ export class GameService {
       playerId: player.id,
       buffer,
       targetEmbedding: round.targetEmbedding,
+      hintEmbedding: round.hintEmbedding,
       onError: () => this.#onScoreError(room.code, player.id),
     });
     return { ok: true, queueSize: this.queue.size };
@@ -213,14 +220,15 @@ export class GameService {
 
   /** Worker-pool processor: scores one job and applies the result. */
   processSubmission = async (job) => {
-    const { similarity, score } = await this.scoring.score(
+    const result = await this.scoring.score(
       job.buffer,
       job.targetEmbedding,
+      job.hintEmbedding,
     );
-    this.#applyScore(job.roomCode, job.playerId, { similarity, score });
+    this.#applyScore(job.roomCode, job.playerId, result);
   };
 
-  #applyScore(roomCode, playerId, { similarity, score }) {
+  #applyScore(roomCode, playerId, { similarity, score, hintReuse = false }) {
     const room = this.rooms.getRoom(roomCode);
     if (!room) return;
     const round = room.currentRound;
@@ -234,6 +242,7 @@ export class GameService {
       score,
       similarity,
       totalScore: player.totalScore,
+      hintReuse,
     });
     this.bus.leaderboard(room);
     this.bus.roomState(room);

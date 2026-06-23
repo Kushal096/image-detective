@@ -10,6 +10,7 @@ export class Round {
     this.targetEmbedding = null; // Float32Array, server-only
     this.targetPreview = null; // full data URL, host-only
     this.targetHint = null; // blurred/cropped data URL for players
+    this.hintEmbedding = null; // Float32Array of clue image, server-only
     this.hasTarget = false;
     this.startedAt = null;
     this.endsAt = null;
@@ -19,10 +20,11 @@ export class Round {
     this.pending = new Set();
   }
 
-  setTarget(embedding, previewDataUrl, hintDataUrl) {
+  setTarget(embedding, previewDataUrl, hintDataUrl, hintEmbedding) {
     this.targetEmbedding = embedding;
     this.targetPreview = previewDataUrl;
     this.targetHint = hintDataUrl;
+    this.hintEmbedding = hintEmbedding;
     this.hasTarget = true;
   }
 

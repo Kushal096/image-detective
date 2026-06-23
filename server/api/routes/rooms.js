@@ -3,7 +3,7 @@ import { uploadSingleImage } from "../../middleware/upload.js";
 import { uploadLimiter } from "../../middleware/security.js";
 import {
   inspectImage,
-  makePlayerHintDataUrl,
+  makePlayerHint,
   makePreviewDataUrl,
 } from "../../ai/imageProcessor.js";
 import { normalizeRoomCode } from "../../utils/validation.js";
@@ -70,16 +70,19 @@ export const createRoomRoutes = ({
           .metadata();
         const hintConfig = parseHintConfig(req.body?.hintConfig, width, height);
 
-        const [embedding, preview, hint] = await Promise.all([
+        const hint = await makePlayerHint(req.file.buffer, hintConfig);
+
+        const [embedding, preview, hintEmbedding] = await Promise.all([
           scoringService.embedTarget(req.file.buffer),
           makePreviewDataUrl(req.file.buffer),
-          makePlayerHintDataUrl(req.file.buffer, hintConfig),
+          scoringService.embedHint(hint.buffer),
         ]);
         await gameService.setTarget({
           room,
           embedding,
           previewDataUrl: preview,
-          hintDataUrl: hint,
+          hintDataUrl: hint.dataUrl,
+          hintEmbedding,
         });
 
         log.info("target set", { code });

@@ -46,3 +46,6 @@ export const SocketEvents = Object.freeze({
 
 export const ROUND_STARTING_DELAY_MS = 3000;
 export const MAX_SCORE = 100;
+
+/** Submissions this similar to the clue image are treated as clue reuse (score 0). */
+export const HINT_REUSE_THRESHOLD = 0.86;
