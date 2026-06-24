@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getSocket, emitWithAck } from '../services/socket/socketClient.js';
-import { SocketEvents, GameState } from '../services/socket/events.js';
-import { loadSession, saveSession, clearSession } from '../utils/storage.js';
-import { useToast } from './toastContext.js';
-import { GameContext } from './gameContext.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getSocket, emitWithAck } from "../services/socket/socketClient.js";
+import { SocketEvents, GameState } from "../services/socket/events.js";
+import { loadSession, saveSession, clearSession } from "../utils/storage.js";
+import { useToast } from "./toastContext.js";
+import { GameContext } from "./gameContext.js";
 
 /**
  * Owns the live game session: the socket connection, the authoritative room
@@ -39,8 +39,11 @@ export const GameProvider = ({ children }) => {
       setConnected(true);
       const id = identityRef.current;
       // Recover a player session transparently after a reconnect.
-      if (id?.role === 'player' && id.code && id.playerId) {
-        emitWithAck(SocketEvents.PLAYER_REJOIN, { code: id.code, playerId: id.playerId });
+      if (id?.role === "player" && id.code && id.playerId) {
+        emitWithAck(SocketEvents.PLAYER_REJOIN, {
+          code: id.code,
+          playerId: id.playerId,
+        });
       }
     };
     const onDisconnect = () => setConnected(false);
@@ -50,20 +53,27 @@ export const GameProvider = ({ children }) => {
       // round start; otherwise seed from the snapshot only if we have no value.
       if (snapshot.state === GameState.ROUND_STARTING) {
         setRemaining(snapshot.roundSeconds ?? null);
-      } else if (typeof snapshot.remainingSeconds === 'number') {
-        setRemaining((prev) => (prev === null ? snapshot.remainingSeconds : prev));
+      } else if (typeof snapshot.remainingSeconds === "number") {
+        setRemaining((prev) =>
+          prev === null ? snapshot.remainingSeconds : prev,
+        );
       }
     };
     const onStateChanged = () => setLastScore(null);
     const onTimer = ({ remaining: r }) => setRemaining(r);
     const onScored = (payload) => {
       setLastScore(payload);
-      toast.success(`Scored ${payload.score} points`);
+      if (payload.hintReuse) {
+        toast.error("Clue image reuse detected — 0 points");
+      } else {
+        toast.success(`Scored ${payload.score} points`);
+      }
     };
-    const onError = ({ message }) => toast.error(message ?? 'Something went wrong');
+    const onError = ({ message }) =>
+      toast.error(message ?? "Something went wrong");
 
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
     socket.on(SocketEvents.ROOM_STATE, onRoomState);
     socket.on(SocketEvents.STATE_CHANGED, onStateChanged);
     socket.on(SocketEvents.TIMER_TICK, onTimer);
@@ -73,8 +83,8 @@ export const GameProvider = ({ children }) => {
     if (!socket.connected) socket.connect();
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
       socket.off(SocketEvents.ROOM_STATE, onRoomState);
       socket.off(SocketEvents.STATE_CHANGED, onStateChanged);
       socket.off(SocketEvents.TIMER_TICK, onTimer);
@@ -86,8 +96,12 @@ export const GameProvider = ({ children }) => {
   // ── Actions ───────────────────────────────────────────
   const createRoom = useCallback(
     async ({ roundSeconds, totalRounds } = {}) => {
-      const res = await emitWithAck(SocketEvents.HOST_CREATE_ROOM, { roundSeconds, totalRounds });
-      if (res?.ok) persistIdentity({ role: 'host', code: res.code, hostId: res.hostId });
+      const res = await emitWithAck(SocketEvents.HOST_CREATE_ROOM, {
+        roundSeconds,
+        totalRounds,
+      });
+      if (res?.ok)
+        persistIdentity({ role: "host", code: res.code, hostId: res.hostId });
       return res;
     },
     [persistIdentity],
@@ -96,8 +110,14 @@ export const GameProvider = ({ children }) => {
   const joinRoom = useCallback(
     async ({ code, name }) => {
       const res = await emitWithAck(SocketEvents.PLAYER_JOIN, { code, name });
-      if (res?.ok) persistIdentity({ role: 'player', code: res.code, playerId: res.playerId, name });
-      else toast.error(res?.message ?? 'Could not join room');
+      if (res?.ok)
+        persistIdentity({
+          role: "player",
+          code: res.code,
+          playerId: res.playerId,
+          name,
+        });
+      else toast.error(res?.message ?? "Could not join room");
       return res;
     },
     [persistIdentity, toast],
@@ -106,9 +126,12 @@ export const GameProvider = ({ children }) => {
   const hostAction = useCallback(
     async (event) => {
       const id = identityRef.current;
-      if (id?.role !== 'host') return { ok: false };
-      const res = await emitWithAck(event, { code: id.code, hostId: id.hostId });
-      if (res && !res.ok) toast.error(res.message ?? 'Action failed');
+      if (id?.role !== "host") return { ok: false };
+      const res = await emitWithAck(event, {
+        code: id.code,
+        hostId: id.hostId,
+      });
+      if (res && !res.ok) toast.error(res.message ?? "Action failed");
       return res;
     },
     [toast],
@@ -128,7 +151,7 @@ export const GameProvider = ({ children }) => {
       remaining,
       lastScore,
       identity,
-      isHost: identity?.role === 'host',
+      isHost: identity?.role === "host",
       createRoom,
       joinRoom,
       startRound: () => hostAction(SocketEvents.HOST_START_ROUND),
@@ -137,7 +160,17 @@ export const GameProvider = ({ children }) => {
       endGame: () => hostAction(SocketEvents.HOST_END_GAME),
       leaveGame,
     }),
-    [connected, room, remaining, lastScore, identity, createRoom, joinRoom, hostAction, leaveGame],
+    [
+      connected,
+      room,
+      remaining,
+      lastScore,
+      identity,
+      createRoom,
+      joinRoom,
+      hostAction,
+      leaveGame,
+    ],
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

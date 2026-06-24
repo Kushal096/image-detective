@@ -1,14 +1,16 @@
 /**
  * A single round. Holds the target embedding (kept server-side, never sent to
- * players) plus per-player submission results. The target preview data URL is
- * only ever sent to the Host.
+ * players) plus per-player submission results. The full target preview is
+ * host-only; players receive a blurred/cropped hint.
  */
 export class Round {
   constructor({ index, durationSeconds }) {
     this.index = index;
     this.durationSeconds = durationSeconds;
     this.targetEmbedding = null; // Float32Array, server-only
-    this.targetPreview = null; // data URL, host-only
+    this.targetPreview = null; // full data URL, host-only
+    this.targetHint = null; // blurred/cropped data URL for players
+    this.hintEmbedding = null; // Float32Array of clue image, server-only
     this.hasTarget = false;
     this.startedAt = null;
     this.endsAt = null;
@@ -18,9 +20,11 @@ export class Round {
     this.pending = new Set();
   }
 
-  setTarget(embedding, previewDataUrl) {
+  setTarget(embedding, previewDataUrl, hintDataUrl, hintEmbedding) {
     this.targetEmbedding = embedding;
     this.targetPreview = previewDataUrl;
+    this.targetHint = hintDataUrl;
+    this.hintEmbedding = hintEmbedding;
     this.hasTarget = true;
   }
 
@@ -39,7 +43,11 @@ export class Round {
 
   recordSubmission(playerId, { score, similarity }) {
     this.pending.delete(playerId);
-    this.submissions.set(playerId, { score, similarity, submittedAt: Date.now() });
+    this.submissions.set(playerId, {
+      score,
+      similarity,
+      submittedAt: Date.now(),
+    });
   }
 
   releasePending(playerId) {

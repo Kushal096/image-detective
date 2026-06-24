@@ -1,6 +1,6 @@
-import { GameState } from '../config/constants.js';
-import { Player } from './Player.js';
-import { Round } from './Round.js';
+import { GameState } from "../config/constants.js";
+import { Player } from "./Player.js";
+import { Round } from "./Round.js";
 
 /**
  * Authoritative room aggregate. Owns the game state machine, the player roster,
@@ -53,7 +53,9 @@ export class Room {
 
   hasName(name) {
     const lowered = name.toLowerCase();
-    return [...this.players.values()].some((p) => p.name.toLowerCase() === lowered);
+    return [...this.players.values()].some(
+      (p) => p.name.toLowerCase() === lowered,
+    );
   }
 
   // ── Rounds / state machine ────────────────────────────
@@ -90,12 +92,12 @@ export class Room {
       const rank = idx + 1;
       const movement =
         player.previousRank === null
-          ? 'same'
+          ? "same"
           : player.previousRank > rank
-            ? 'up'
+            ? "up"
             : player.previousRank < rank
-              ? 'down'
-              : 'same';
+              ? "down"
+              : "same";
       const round = this.currentRound;
       const roundResult = round ? round.submissions.get(player.id) : null;
       return {
@@ -123,6 +125,7 @@ export class Room {
   /** Client-safe room snapshot. Host-only fields are added by the caller. */
   toPublic() {
     const round = this.currentRound;
+    const hintVisible = PLAYER_HINT_VISIBLE_STATES.has(this.state);
     return {
       code: this.code,
       state: this.state,
@@ -130,9 +133,18 @@ export class Room {
       totalRounds: this.totalRounds,
       currentRound: this.currentRoundIndex + 1,
       hasTarget: round?.hasTarget ?? false,
+      targetHint: hintVisible ? (round?.targetHint ?? null) : null,
       remainingSeconds: round ? round.remainingSeconds() : this.roundSeconds,
       players: [...this.players.values()].map((p) => p.toPublic()),
       leaderboard: this.leaderboard(),
     };
   }
 }
+
+/** Player hint is revealed only after the host starts the round. */
+const PLAYER_HINT_VISIBLE_STATES = new Set([
+  GameState.ROUND_STARTING,
+  GameState.SEARCHING,
+  GameState.SUBMISSIONS_CLOSED,
+  GameState.AI_PROCESSING,
+]);
