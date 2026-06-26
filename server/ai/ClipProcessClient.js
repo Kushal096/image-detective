@@ -32,8 +32,9 @@ export class ClipProcessClient {
     return this.#request("warmup");
   }
 
-  embed(buffer) {
-    return this.#request("embed", { buffer });
+  /** @param {{ data: Buffer, info: { width: number, height: number, channels: number } }} preprocessed */
+  embed(preprocessed) {
+    return this.#request("embed", preprocessed);
   }
 
   async stop() {

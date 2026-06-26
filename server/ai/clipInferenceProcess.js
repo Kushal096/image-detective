@@ -1,9 +1,11 @@
 /**
  * Isolated child process for CLIP / ONNX inference. A native runtime crash here
  * must not take down the main game server.
+ *
+ * Image preprocessing (sharp/libvips) runs in the main process — loading sharp
+ * and onnxruntime in the same process corrupts native heap memory.
  */
 import { env } from "../config/env.js";
-import { preprocessForClip } from "./imageProcessor.js";
 import { createLogger } from "../utils/logger.js";
 
 const log = createLogger("clip:proc");
@@ -45,12 +47,12 @@ const load = async () => {
   return ready;
 };
 
-const embed = async (buffer) => {
+/** @param {{ data: Buffer, info: { width: number, height: number, channels: number } }} preprocessed */
+const embed = async ({ data, info }) => {
   await load();
-  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-  const { data, info } = await preprocessForClip(bytes);
+  const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
   const image = new RawImage(
-    new Uint8ClampedArray(data),
+    new Uint8ClampedArray(bytes),
     info.width,
     info.height,
     info.channels,
@@ -89,7 +91,7 @@ process.on("message", (msg) => {
   if (msg?.type === "embed") {
     enqueue(async () => {
       try {
-        const embedding = await embed(msg.buffer);
+        const embedding = await embed({ data: msg.data, info: msg.info });
         process.send?.({ type: "embed", id: msg.id, ok: true, embedding });
       } catch (err) {
         process.send?.({

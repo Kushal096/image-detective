@@ -24,7 +24,8 @@ class ClipModel {
   async embed(buffer) {
     if (env.ai.mock) return this.#mockEmbed(buffer);
     try {
-      return await clipProcessClient.embed(buffer);
+      const preprocessed = await preprocessForClip(buffer);
+      return await clipProcessClient.embed(preprocessed);
     } catch (err) {
       if (!env.ai.fallbackMock) throw err;
       log.warn("CLIP unavailable, using mock embedding", err.message);
