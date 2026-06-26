@@ -71,15 +71,26 @@ export class GameService {
 
   async setTarget({
     room,
+    roundIndex,
     embedding,
     previewDataUrl,
     hintDataUrl,
     hintEmbedding,
   }) {
-    const round = this.#ensureUpcomingRound(room);
+    // If roundIndex is specified, use that round; otherwise use current/create new
+    let round;
+    if (roundIndex !== undefined && roundIndex !== null) {
+      round = room.rounds[roundIndex];
+      if (!round) {
+        return { error: 'Round not found', code: 'NOT_FOUND' };
+      }
+    } else {
+      round = this.#ensureUpcomingRound(room);
+    }
+    
     round.setTarget(embedding, previewDataUrl, hintDataUrl, hintEmbedding);
     this.bus.roomState(room);
-    return round;
+    return { round };
   }
 
   startRound({ room }) {
@@ -145,6 +156,10 @@ export class GameService {
   }
 
   #finalizeResults(room) {
+    const round = room.currentRound;
+    if (round) {
+      round.complete();
+    }
     room.commitRanks();
     room.setState(GameState.RESULTS);
     this.bus.stateChanged(room);
@@ -159,6 +174,26 @@ export class GameService {
     if (room.isLastRound) {
       return this.endGame({ room });
     }
+    
+    // If game has started (tournament mode), advance to next prepared round
+    if (room.gameStarted) {
+      const currentRound = room.currentRound;
+      if (currentRound) {
+        currentRound.status = 'completed';
+      }
+      
+      room.currentRoundIndex++;
+      const nextRound = room.currentRound;
+      if (nextRound) {
+        nextRound.status = 'active';
+      }
+      
+      room.setState(GameState.WAITING_ROOM);
+      this.bus.stateChanged(room);
+      return { ok: true };
+    }
+    
+    // Legacy mode: create new round on the fly
     room.createNextRound();
     room.setState(GameState.WAITING_ROOM);
     this.bus.stateChanged(room);
@@ -194,7 +229,7 @@ export class GameService {
    * Validates submission preconditions and enqueues the scoring job.
    * Returns synchronously; the worker pool scores asynchronously.
    */
-  enqueueSubmission({ room, player, buffer }) {
+  async enqueueSubmission({ room, player, buffer }) {
     const round = room.currentRound;
     if (room.state !== GameState.SEARCHING || !round) {
       return { error: "Submissions are closed", code: "CLOSED" };
@@ -206,11 +241,15 @@ export class GameService {
       return { error: "You already submitted this round", code: "DUPLICATE" };
     }
 
+    // Convert buffer to data URL for later display in results
+    const imageUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+
     round.lockPending(player.id);
     this.queue.enqueue({
       roomCode: room.code,
       playerId: player.id,
       buffer,
+      imageUrl,
       targetEmbedding: round.targetEmbedding,
       hintEmbedding: round.hintEmbedding,
       onError: () => this.#onScoreError(room.code, player.id),
@@ -225,17 +264,17 @@ export class GameService {
       job.targetEmbedding,
       job.hintEmbedding,
     );
-    this.#applyScore(job.roomCode, job.playerId, result);
+    this.#applyScore(job.roomCode, job.playerId, { ...result, imageUrl: job.imageUrl });
   };
 
-  #applyScore(roomCode, playerId, { similarity, score, hintReuse = false }) {
+  #applyScore(roomCode, playerId, { similarity, score, hintReuse = false, imageUrl = null }) {
     const room = this.rooms.getRoom(roomCode);
     if (!room) return;
     const round = room.currentRound;
     const player = room.getPlayer(playerId);
     if (!round || !player) return;
 
-    round.recordSubmission(playerId, { score, similarity });
+    round.recordSubmission(playerId, { score, similarity, imageUrl });
     player.totalScore += score;
 
     this.bus.scoredToPlayer(player.socketId, {

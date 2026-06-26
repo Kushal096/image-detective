@@ -34,7 +34,7 @@ export const createRoomRoutes = ({
     });
   });
 
-  // Host uploads / replaces the target image for the upcoming round.
+  // Host uploads / replaces the target image for a specific round or upcoming round.
   router.post("/:code/target", uploadLimiter, (req, res, next) => {
     uploadSingleImage(req, res, async (uploadErr) => {
       if (uploadErr) return next(uploadErr);
@@ -77,15 +77,24 @@ export const createRoomRoutes = ({
           makePreviewDataUrl(req.file.buffer),
           scoringService.embedHint(hint.buffer),
         ]);
-        await gameService.setTarget({
+        
+        // Support roundIndex query param for tournament mode
+        const roundIndex = req.body.roundIndex !== undefined ? parseInt(req.body.roundIndex, 10) : undefined;
+        
+        const result = await gameService.setTarget({
           room,
+          roundIndex,
           embedding,
           previewDataUrl: preview,
           hintDataUrl: hint.dataUrl,
           hintEmbedding,
         });
 
-        log.info("target set", { code });
+        if (result.error) {
+          return res.status(400).json(result);
+        }
+
+        log.info("target set", { code, roundIndex });
         res.json({ ok: true });
       } catch (err) {
         next(err);

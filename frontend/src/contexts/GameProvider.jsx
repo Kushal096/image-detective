@@ -124,12 +124,13 @@ export const GameProvider = ({ children }) => {
   );
 
   const hostAction = useCallback(
-    async (event) => {
+    async (event, extraPayload = {}) => {
       const id = identityRef.current;
       if (id?.role !== "host") return { ok: false };
       const res = await emitWithAck(event, {
         code: id.code,
         hostId: id.hostId,
+        ...extraPayload,
       });
       if (res && !res.ok) toast.error(res.message ?? "Action failed");
       return res;
@@ -154,6 +155,11 @@ export const GameProvider = ({ children }) => {
       isHost: identity?.role === "host",
       createRoom,
       joinRoom,
+      addRound: (title) => hostAction(SocketEvents.HOST_ADD_ROUND, { title }),
+      removeRound: (roundIndex) => hostAction(SocketEvents.HOST_REMOVE_ROUND, { roundIndex }),
+      updateRound: (roundIndex, title) => hostAction(SocketEvents.HOST_UPDATE_ROUND, { roundIndex, title }),
+      reorderRounds: (newOrder) => hostAction(SocketEvents.HOST_REORDER_ROUNDS, { newOrder }),
+      startGame: () => hostAction(SocketEvents.HOST_START_GAME),
       startRound: () => hostAction(SocketEvents.HOST_START_ROUND),
       skipRound: () => hostAction(SocketEvents.HOST_SKIP_ROUND),
       nextRound: () => hostAction(SocketEvents.HOST_NEXT_ROUND),

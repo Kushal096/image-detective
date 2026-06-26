@@ -38,10 +38,44 @@ export const registerHostHandlers = ({ socket, gameService, roomManager, broadca
       // Re-bind host socket on reconnect.
       room.hostSocketId = socket.id;
       socket.join(room.code);
-      const result = (await run(room)) ?? { ok: true };
+      const result = (await run(room, payload)) ?? { ok: true };
       ack(cb, result.error ? { ok: false, ...result } : { ok: true, ...result });
     });
   };
+
+  // Round management (pre-game only)
+  hostAction(SocketEvents.HOST_ADD_ROUND, async (room) => {
+    const result = room.addRound();
+    if (!result.error) broadcaster.roomState(room);
+    return result;
+  });
+
+  hostAction(SocketEvents.HOST_REMOVE_ROUND, async (room, payload) => {
+    const result = room.removeRound(payload.roundIndex);
+    if (!result.error) broadcaster.roomState(room);
+    return result;
+  });
+
+  hostAction(SocketEvents.HOST_UPDATE_ROUND, async (room, payload) => {
+    const result = room.updateRound(payload.roundIndex, { title: payload.title });
+    if (!result.error) broadcaster.roomState(room);
+    return result;
+  });
+
+  hostAction(SocketEvents.HOST_REORDER_ROUNDS, async (room, payload) => {
+    const result = room.reorderRounds(payload.newOrder);
+    if (!result.error) broadcaster.roomState(room);
+    return result;
+  });
+
+  // Game flow
+  hostAction(SocketEvents.HOST_START_GAME, (room) => {
+    const result = room.startGame();
+    if (!result.error) {
+      broadcaster.roomState(room);
+    }
+    return result;
+  });
 
   hostAction(SocketEvents.HOST_START_ROUND, (room) => gameService.startRound({ room }));
   hostAction(SocketEvents.HOST_SKIP_ROUND, (room) => gameService.skipRound({ room }));

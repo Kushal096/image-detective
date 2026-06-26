@@ -32,14 +32,18 @@ const postImage = async (path, headers, blob, filename, extraFields = {}) => {
 
 export const apiClient = {
   /** Host uploads the round's target image with optional player-hint crop/blur settings. */
-  uploadTarget: (code, hostId, blob, hintConfig) =>
-    postImage(
+  uploadTarget: (code, hostId, blob, hintConfig, roundIndex) => {
+    const extraFields = {};
+    if (hintConfig) extraFields.hintConfig = hintConfig;
+    if (roundIndex !== undefined && roundIndex !== null) extraFields.roundIndex = roundIndex;
+    return postImage(
       `/rooms/${code}/target`,
       { "x-host-id": hostId },
       blob,
       "target.jpg",
-      hintConfig ? { hintConfig } : {},
-    ),
+      extraFields,
+    );
+  },
 
   /** Player submits their candidate image for scoring. */
   submitImage: (code, playerId, blob) =>

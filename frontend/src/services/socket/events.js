@@ -4,13 +4,22 @@
  * source of truth for event names.
  */
 export const SocketEvents = Object.freeze({
-  // Client -> Server
+  // Client -> Server (Host)
   HOST_CREATE_ROOM: 'host:create_room',
+  HOST_ADD_ROUND: 'host:add_round',
+  HOST_REMOVE_ROUND: 'host:remove_round',
+  HOST_UPDATE_ROUND: 'host:update_round',
+  HOST_REORDER_ROUNDS: 'host:reorder_rounds',
+  HOST_START_GAME: 'host:start_game',
   HOST_START_ROUND: 'host:start_round',
+  HOST_PAUSE_ROUND: 'host:pause_round',
+  HOST_RESUME_ROUND: 'host:resume_round',
   HOST_SKIP_ROUND: 'host:skip_round',
+  HOST_END_ROUND: 'host:end_round',
   HOST_NEXT_ROUND: 'host:next_round',
   HOST_END_GAME: 'host:end_game',
 
+  // Client -> Server (Player)
   PLAYER_JOIN: 'player:join',
   PLAYER_REJOIN: 'player:rejoin',
 
@@ -20,8 +29,14 @@ export const SocketEvents = Object.freeze({
   TIMER_TICK: 'timer:tick',
   LEADERBOARD_UPDATE: 'leaderboard:update',
   SUBMISSION_SCORED: 'submission:scored',
+  SUBMISSION_RECEIVED: 'submission:received',
   PLAYER_JOINED: 'player:joined',
+  PLAYER_LEFT: 'player:left',
+  PLAYER_RECONNECTED: 'player:reconnected',
   STATE_CHANGED: 'state:changed',
+  ROUND_COMPLETED: 'round:completed',
+  ROUND_RESULTS: 'round:results',
+  GAME_FINISHED: 'game:finished',
 });
 
 /** Authoritative game states (mirror of server constants). */

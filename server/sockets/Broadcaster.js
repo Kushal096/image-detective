@@ -12,13 +12,11 @@ export class Broadcaster {
   /** Broadcasts the full public room snapshot to everyone in the room. */
   roomState(room) {
     this.io.to(room.code).emit(SocketEvents.ROOM_STATE, room.toPublic());
-    // Host receives an augmented snapshot including the (private) target preview.
+    // Host receives an augmented snapshot including rounds and target previews.
     if (room.hostSocketId) {
-      const round = room.currentRound;
       this.io.to(room.hostSocketId).emit(SocketEvents.ROOM_STATE, {
-        ...room.toPublic(),
+        ...room.toHostPublic(),
         isHost: true,
-        targetPreview: round?.targetPreview ?? null,
       });
     }
   }

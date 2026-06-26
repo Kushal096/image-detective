@@ -77,9 +77,9 @@ export const TargetHintEditor = ({
           <button
             type="button"
             onClick={onCancel}
-            disabled={uploading}
-            className="p-2 rounded-sm text-text-muted hover:text-text hover:bg-elevated"
+            className="p-2 rounded-sm text-text-muted hover:text-text hover:bg-elevated disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Close editor"
+            disabled={uploading}
           >
             <X className="size-5" />
           </button>
