@@ -213,6 +213,7 @@ export class Room {
   toPublic() {
     const round = this.currentRound;
     const hintVisible = PLAYER_HINT_VISIBLE_STATES.has(this.state);
+    const originalVisible = ORIGINAL_IMAGE_VISIBLE_STATES.has(this.state);
     return {
       code: this.code,
       state: this.state,
@@ -223,6 +224,7 @@ export class Room {
       gameStarted: this.gameStarted,
       hasTarget: round?.hasTarget ?? false,
       targetHint: hintVisible ? (round?.targetHint ?? null) : null,
+      targetPreview: originalVisible ? (round?.targetPreview ?? null) : null,
       remainingSeconds: round ? round.remainingSeconds() : this.roundSeconds,
       players: [...this.players.values()].map((p) => p.toPublic()),
       leaderboard: this.leaderboard(),
@@ -247,4 +249,10 @@ const PLAYER_HINT_VISIBLE_STATES = new Set([
   GameState.SEARCHING,
   GameState.SUBMISSIONS_CLOSED,
   GameState.AI_PROCESSING,
+]);
+
+/** Original image is revealed after the round ends. */
+const ORIGINAL_IMAGE_VISIBLE_STATES = new Set([
+  GameState.RESULTS,
+  GameState.GAME_FINISHED,
 ]);

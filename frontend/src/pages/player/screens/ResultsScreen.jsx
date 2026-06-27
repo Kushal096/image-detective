@@ -12,6 +12,22 @@ export const ResultsScreen = ({ room, playerId, lastScore, isFinal }) => {
 
   return (
     <div className="max-w-md mx-auto pt-6 flex flex-col gap-4 animate-fade-in">
+      {room.targetPreview && (
+        <Card className="animate-scale-in">
+          <CardHeader title="Original Image" />
+          <div className="p-4">
+            <img
+              src={room.targetPreview}
+              alt="Original target"
+              className="w-full h-auto rounded-lg border border-border"
+            />
+            <p className="font-body text-xs text-text-muted text-center mt-2">
+              This was the target image for this round
+            </p>
+          </div>
+        </Card>
+      )}
+
       {isFinal && (
         <Card glow="primary" className="text-center py-6 animate-scale-in">
           <Trophy className="size-8 text-primary mx-auto mb-2" aria-hidden />
