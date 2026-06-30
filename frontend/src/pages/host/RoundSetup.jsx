@@ -73,6 +73,8 @@ export const RoundSetup = ({ onStartGame }) => {
     if (!result?.ok) toast.error(result?.message || "Failed to reorder rounds");
   };
 
+  const handleDragEnd = () => setDraggingIndex(null);
+
   return (
     <AppLayout>
       <div className="max-w-5xl mx-auto">
@@ -171,6 +173,7 @@ export const RoundSetup = ({ onStartGame }) => {
                 isDragging={draggingIndex === groupIndex}
                 uploadingKey={uploadingKey}
                 onDragStart={() => setDraggingIndex(groupIndex)}
+                onDragEnd={handleDragEnd}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDrop(groupIndex)}
                 onRemove={() =>
@@ -248,6 +251,7 @@ const RoundGroupCard = ({
   isDragging,
   uploadingKey,
   onDragStart,
+  onDragEnd,
   onDragOver,
   onDrop,
   onRemove,
@@ -259,71 +263,82 @@ const RoundGroupCard = ({
 }) => {
   const [groupTitle, setGroupTitle] = useState(group.title || "");
   const subRounds = group.subRounds || [];
+  const cardRef = useRef(null);
 
   return (
-    <Card
-      className={cn(
-        "transition-all duration-200",
-        isDragging && "opacity-50 scale-95",
-      )}
-      draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-    >
-      <div className="flex items-start gap-3 mb-4">
-        <button
-          type="button"
-          className="p-2 text-text-muted hover:text-text cursor-grab active:cursor-grabbing"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="size-5" />
-        </button>
-        <div className="flex-1 flex items-center gap-2">
-          <Input
-            value={groupTitle}
-            onChange={(e) => setGroupTitle(e.target.value)}
-            onBlur={() =>
-              groupTitle !== group.title && onUpdateTitle(groupTitle || null)
-            }
-            placeholder={`Round group ${groupIndex + 1}`}
-            className="font-display text-sm"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="p-1.5 rounded-xs text-danger hover:bg-danger/10 transition-colors"
-        >
-          <Trash2 className="size-4" />
-        </button>
-      </div>
-
-      <div className="space-y-3 pl-2">
-        {subRounds.map((subRound, subIdx) => (
-          <SubRoundRow
-            key={subIdx}
-            subRound={subRound}
-            groupIndex={groupIndex}
-            subRoundIndex={subIdx}
-            canRemove={subRounds.length > 1}
-            isUploading={uploadingKey === `${groupIndex}-${subIdx}`}
-            onRemove={() => onRemoveSubRound(subIdx)}
-            onUpdateTitle={(title) => onUpdateSubRoundTitle(subIdx, title)}
-            onUploadStart={onUploadStart}
-          />
-        ))}
-      </div>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        className="mt-3 w-full"
-        onClick={() => onAddSubRound(`Sub-round ${subRounds.length + 1}`)}
+    <div ref={cardRef}>
+      <Card
+        className={cn(
+          "transition-all duration-200",
+          isDragging && "opacity-50 scale-95",
+        )}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
       >
-        <Plus className="size-3.5" /> Add Sub-round
-      </Button>
-    </Card>
+        <div className="flex items-start gap-3 mb-4">
+          <button
+            type="button"
+            draggable
+            aria-label="Drag to reorder"
+            className="p-2 text-text-muted hover:text-text cursor-grab active:cursor-grabbing touch-none"
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", String(groupIndex));
+              if (cardRef.current) {
+                e.dataTransfer.setDragImage(cardRef.current, 24, 24);
+              }
+              onDragStart();
+            }}
+            onDragEnd={onDragEnd}
+          >
+            <GripVertical className="size-5 pointer-events-none" />
+          </button>
+          <div className="flex-1 flex items-center gap-2">
+            <Input
+              value={groupTitle}
+              onChange={(e) => setGroupTitle(e.target.value)}
+              onBlur={() =>
+                groupTitle !== group.title && onUpdateTitle(groupTitle || null)
+              }
+              placeholder={`Round group ${groupIndex + 1}`}
+              className="font-display text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1.5 rounded-xs text-danger hover:bg-danger/10 transition-colors"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3 pl-2">
+          {subRounds.map((subRound, subIdx) => (
+            <SubRoundRow
+              key={subIdx}
+              subRound={subRound}
+              groupIndex={groupIndex}
+              subRoundIndex={subIdx}
+              canRemove={subRounds.length > 1}
+              isUploading={uploadingKey === `${groupIndex}-${subIdx}`}
+              onRemove={() => onRemoveSubRound(subIdx)}
+              onUpdateTitle={(title) => onUpdateSubRoundTitle(subIdx, title)}
+              onUploadStart={onUploadStart}
+            />
+          ))}
+        </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-3 w-full"
+          onClick={() => onAddSubRound(`Sub-round ${subRounds.length + 1}`)}
+        >
+          <Plus className="size-3.5" /> Add Sub-round
+        </Button>
+      </Card>
+    </div>
   );
 };
 

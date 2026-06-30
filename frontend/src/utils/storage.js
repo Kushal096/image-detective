@@ -1,39 +1,49 @@
 /**
- * Persists session identity so a refresh or reconnect can recover the player's
- * place in a room. Uses localStorage keyed by room code so sessions survive
- * tab backgrounding and browser restarts within the same device.
+ * Persists session identity so a refresh or reconnect can recover host/player
+ * place in a room. Uses localStorage keyed by room code.
  */
 const KEY_PREFIX = "internet-detective:session:";
 
-export const saveSession = (session) => {
-  if (!session?.code) return;
+const scanAllSessions = () => {
+  const sessions = [];
   try {
-    localStorage.setItem(
-      `${KEY_PREFIX}${session.code}`,
-      JSON.stringify(session),
-    );
-  } catch {
-    /* storage unavailable — non-fatal */
-  }
-};
-
-export const loadSession = (code) => {
-  try {
-    const key = code ? `${KEY_PREFIX}${code}` : null;
-    if (key) {
-      const raw = localStorage.getItem(key);
-      if (raw) return JSON.parse(raw);
-    }
-    // Fallback: scan for any player session (single active game assumption).
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k?.startsWith(KEY_PREFIX)) continue;
       const raw = localStorage.getItem(k);
       if (!raw) continue;
       const parsed = JSON.parse(raw);
-      if (parsed?.role === "player") return parsed;
+      if (parsed?.code && parsed?.role) sessions.push(parsed);
     }
-    return null;
+  } catch {
+    /* ignore corrupt storage */
+  }
+  return sessions;
+};
+
+export const saveSession = (session) => {
+  if (!session?.code) return;
+  try {
+    localStorage.setItem(
+      `${KEY_PREFIX}${session.code}`,
+      JSON.stringify({ ...session, savedAt: Date.now() }),
+    );
+  } catch {
+    /* storage unavailable — non-fatal */
+  }
+};
+
+/** Load a saved session, optionally filtered by role (host | player). */
+export const loadSession = ({ role } = {}) => {
+  try {
+    const sessions = scanAllSessions();
+    if (role) {
+      const match = sessions.find((s) => s.role === role);
+      if (match) return match;
+      return null;
+    }
+    // Prefer host session (typically one active game per device).
+    return sessions.find((s) => s.role === "host") ?? sessions[0] ?? null;
   } catch {
     return null;
   }

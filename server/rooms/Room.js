@@ -334,16 +334,21 @@ export class Room {
   toHostPublic() {
     const publicData = this.toPublic();
     const entry = this.currentRoundEntry;
+    const showTarget = ORIGINAL_IMAGE_VISIBLE_STATES.has(this.state);
     return {
       ...publicData,
       rounds: this.rounds.map((g) => g.toHostPublic()),
       allRoundsReady: this.allRoundsReady(),
-      targetPreview: this.currentRound?.targetPreview ?? null,
+      targetPreview: showTarget
+        ? (this.currentRound?.targetPreview ?? null)
+        : null,
       currentSubRound: entry
         ? {
             groupIndex: entry.group.index,
             subRoundIndex: entry.subRound.index,
-            ...entry.subRound.toHostPublic(),
+            ...entry.subRound.toHostPublic({
+              includeTargetPreview: showTarget,
+            }),
           }
         : null,
     };

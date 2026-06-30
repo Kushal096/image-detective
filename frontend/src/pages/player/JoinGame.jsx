@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { LogIn } from "lucide-react";
 import { AppLayout } from "../../layouts/AppLayout.jsx";
@@ -6,6 +6,7 @@ import { Card, CardHeader } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { useGame } from "../../contexts/gameContext.js";
+import { loadSession } from "../../utils/storage.js";
 
 const ROOM_CODE_RE = /^[A-Z0-9]{6}$/;
 
@@ -13,12 +14,27 @@ const ROOM_CODE_RE = /^[A-Z0-9]{6}$/;
 export const JoinGame = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { joinRoom } = useGame();
+  const { joinRoom, restoreSession, rejoinPlayer } = useGame();
 
   const [code, setCode] = useState((params.get("code") ?? "").toUpperCase());
   const [name, setName] = useState("");
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [resuming, setResuming] = useState(true);
+
+  // Auto-resume if a saved player session exists.
+  useEffect(() => {
+    const saved = loadSession({ role: "player" });
+    if (saved?.code && saved?.playerId) {
+      restoreSession(saved);
+      rejoinPlayer().then((res) => {
+        if (res?.ok) navigate("/play", { replace: true });
+        else setResuming(false);
+      });
+    } else {
+      setResuming(false);
+    }
+  }, [restoreSession, rejoinPlayer, navigate]);
 
   const validate = () => {
     const next = {};
@@ -42,6 +58,18 @@ export const JoinGame = () => {
     setSubmitting(false);
     if (res?.ok) navigate("/play");
   };
+
+  if (resuming) {
+    return (
+      <AppLayout>
+        <div className="max-w-md mx-auto pt-10 text-center">
+          <p className="font-label uppercase tracking-widest text-text-secondary text-sm">
+            Restoring your session…
+          </p>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

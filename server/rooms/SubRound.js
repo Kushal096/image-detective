@@ -76,7 +76,12 @@ export class SubRound {
     }
   }
 
-  toHostPublic() {
+  /** Player IDs who submitted this round (scored or still processing). */
+  submittedPlayerIds() {
+    return [...new Set([...this.pending, ...this.submissions.keys()])];
+  }
+
+  toHostPublic({ includeTargetPreview = true } = {}) {
     const submissions = {};
     for (const [playerId, submission] of this.submissions.entries()) {
       submissions[playerId] = submission;
@@ -86,10 +91,11 @@ export class SubRound {
       index: this.index,
       title: this.title,
       hasTarget: this.hasTarget,
-      targetPreview: this.targetPreview,
+      targetPreview: includeTargetPreview ? this.targetPreview : null,
       status: this.status,
       winner: this.winner,
       submissionCount: this.submissions.size,
+      submittedPlayerIds: this.submittedPlayerIds(),
       submissions,
     };
   }

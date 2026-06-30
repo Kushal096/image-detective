@@ -46,6 +46,38 @@ export const registerHostHandlers = ({
     broadcaster.roomState(room);
   });
 
+  socket.on(SocketEvents.HOST_REJOIN, (payload = {}, cb) => {
+    const room = roomManager.getRoom(normalizeRoomCode(payload.code));
+    if (!room) {
+      return ack(cb, {
+        ok: false,
+        code: "NOT_FOUND",
+        message: "Room not found",
+      });
+    }
+
+    const result = gameService.rejoinHost({
+      room,
+      hostId: payload.hostId,
+      socketId: socket.id,
+    });
+    if (result.error) {
+      return ack(cb, { ok: false, code: result.code, message: result.error });
+    }
+
+    socket.join(room.code);
+    socket.data.roomCode = room.code;
+    socket.data.isHost = true;
+
+    ack(cb, {
+      ok: true,
+      code: room.code,
+      hostId: room.hostId,
+      state: room.state,
+    });
+    broadcaster.roomState(room);
+  });
+
   const hostAction = (event, run) => {
     socket.on(event, async (payload = {}, cb) => {
       const { room, error } = authorize(payload.code, payload.hostId);

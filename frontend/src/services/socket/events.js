@@ -6,6 +6,7 @@
 export const SocketEvents = Object.freeze({
   // Client -> Server (Host)
   HOST_CREATE_ROOM: "host:create_room",
+  HOST_REJOIN: "host:rejoin",
   HOST_ADD_ROUND: "host:add_round",
   HOST_REMOVE_ROUND: "host:remove_round",
   HOST_UPDATE_ROUND: "host:update_round",

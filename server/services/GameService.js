@@ -45,7 +45,9 @@ export class GameService {
     if (existing) {
       existing.socketId = socketId;
       existing.connected = true;
-      return { player: existing, resumed: true };
+      const round = room.currentRound;
+      const hasSubmittedThisRound = round?.hasSubmitted(existing.id) ?? false;
+      return { player: existing, resumed: true, hasSubmittedThisRound };
     }
 
     if (room.state !== GameState.WAITING_ROOM) {
@@ -64,7 +66,18 @@ export class GameService {
     if (!player) return { error: "Session not found", code: "NO_SESSION" };
     player.socketId = socketId;
     player.connected = true;
-    return { player };
+    const round = room.currentRound;
+    const hasSubmittedThisRound = round?.hasSubmitted(playerId) ?? false;
+    return { player, hasSubmittedThisRound };
+  }
+
+  /** Re-binds the host socket after a page refresh or reconnect. */
+  rejoinHost({ room, hostId, socketId }) {
+    if (room.hostId !== hostId) {
+      return { error: "Not the host", code: "FORBIDDEN" };
+    }
+    room.hostSocketId = socketId;
+    return { ok: true };
   }
 
   // ── Target & round control (host only) ────────────────
@@ -256,6 +269,7 @@ export class GameService {
     const imageUrl = `data:image/jpeg;base64,${buffer.toString("base64")}`;
 
     round.lockPending(player.id);
+    this.bus.roomState(room);
     this.queue.enqueue({
       roomCode: room.code,
       playerId: player.id,

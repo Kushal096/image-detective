@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Play,
   SkipForward,
@@ -13,40 +13,16 @@ import { AppLayout } from "../../layouts/AppLayout.jsx";
 import { Card, CardHeader } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { Timer } from "../../components/game/Timer.jsx";
+import { Leaderboard } from "../../components/game/Leaderboard.jsx";
 import { RoundResults } from "../../components/game/RoundResults.jsx";
 import { RoomInfoCard } from "./RoomInfoCard.jsx";
 import { useGame } from "../../contexts/gameContext.js";
 import { GameState } from "../../services/socket/events.js";
 import { cn } from "../../utils/cn.js";
 
-const PlayersList = ({
-  players,
-  emptyLabel = "No players have joined yet",
-}) => {
-  if (players.length === 0) {
-    return (
-      <p className="font-body text-sm text-text-muted text-center py-6">
-        {emptyLabel}
-      </p>
-    );
-  }
-  return (
-    <ul className="flex flex-wrap gap-2">
-      {players.map((p) => (
-        <li
-          key={p.id}
-          className="font-body text-xs px-2.5 py-1 rounded-xs border border-border bg-elevated text-text-secondary"
-        >
-          {p.name}
-        </li>
-      ))}
-    </ul>
-  );
-};
-
 /**
  * Game Control page - Screen-share friendly control panel.
- * Never displays future target images, scores, or hidden information.
+ * Never displays scores or target images before a round ends.
  */
 export const GameControl = () => {
   const {
@@ -68,6 +44,7 @@ export const GameControl = () => {
     totalRounds,
     roundSeconds,
     players,
+    leaderboard,
     currentRoundTitle,
     currentRoundGroupTitle,
     currentSubRound,
@@ -85,8 +62,14 @@ export const GameControl = () => {
   const isProcessing =
     state === GameState.SUBMISSIONS_CLOSED || state === GameState.AI_PROCESSING;
   const isResults = state === GameState.RESULTS;
+  const isLiveRound = isSearching || isProcessing;
   const canStart = players.length > 0;
   const shouldShowJoinInfo = state === GameState.WAITING_ROOM || showJoinInfo;
+
+  const submittedIds = useMemo(
+    () => new Set(currentSubRound?.submittedPlayerIds ?? []),
+    [currentSubRound?.submittedPlayerIds],
+  );
 
   return (
     <AppLayout>
@@ -128,8 +111,10 @@ export const GameControl = () => {
                   subtitle={`${players.length} joined`}
                   icon={Users}
                 />
-                <PlayersList
-                  players={players}
+                <Leaderboard
+                  entries={leaderboard}
+                  hideScores
+                  submittedIds={isLiveRound ? submittedIds : undefined}
                   emptyLabel="Waiting for players..."
                 />
               </Card>
@@ -232,13 +217,21 @@ export const GameControl = () => {
                 targetImage={currentSubRound.targetPreview}
               />
             ) : (
-              <Card glow="secondary" className="min-h-[200px]">
+              <Card glow="secondary" className="min-h-[400px]">
                 <CardHeader
-                  title="Joined Players"
-                  subtitle="Detectives in the room"
-                  icon={Users}
+                  title="Live Leaderboard"
+                  subtitle={
+                    isLiveRound
+                      ? "✓ = submitted this round"
+                      : "Tournament standings"
+                  }
                 />
-                <PlayersList players={players} />
+                <Leaderboard
+                  entries={leaderboard}
+                  hideScores
+                  submittedIds={isLiveRound ? submittedIds : undefined}
+                  emptyLabel="No players have joined yet"
+                />
               </Card>
             )}
           </div>

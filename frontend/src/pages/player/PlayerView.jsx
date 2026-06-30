@@ -1,58 +1,87 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AppLayout } from '../../layouts/AppLayout.jsx';
-import { Spinner } from '../../components/ui/Spinner.jsx';
-import { StateBadge } from '../../components/game/StateBadge.jsx';
-import { Button } from '../../components/ui/Button.jsx';
-import { useGame } from '../../contexts/gameContext.js';
-import { useToast } from '../../contexts/toastContext.js';
-import { GameState } from '../../services/socket/events.js';
-import { apiClient } from '../../services/api/client.js';
-import { Lobby } from './screens/Lobby.jsx';
-import { SearchScreen } from './screens/SearchScreen.jsx';
-import { ProcessingScreen } from './screens/ProcessingScreen.jsx';
-import { ResultsScreen } from './screens/ResultsScreen.jsx';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { useNavigate } from "react-router-dom";
+import { AppLayout } from "../../layouts/AppLayout.jsx";
+import { Spinner } from "../../components/ui/Spinner.jsx";
+import { StateBadge } from "../../components/game/StateBadge.jsx";
+import { Button } from "../../components/ui/Button.jsx";
+import { useGame } from "../../contexts/gameContext.js";
+import { useToast } from "../../contexts/toastContext.js";
+import { GameState } from "../../services/socket/events.js";
+import { loadSession } from "../../utils/storage.js";
+import { apiClient } from "../../services/api/client.js";
+import { Lobby } from "./screens/Lobby.jsx";
+import { SearchScreen } from "./screens/SearchScreen.jsx";
+import { ProcessingScreen } from "./screens/ProcessingScreen.jsx";
+import { ResultsScreen } from "./screens/ResultsScreen.jsx";
 
 /**
- * Player container. Selects the right screen for the authoritative game state
- * and owns the per-round "already submitted" guard.
+ * Player container. Restores saved session on refresh and syncs submission state.
  */
 export const PlayerView = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const { room, identity, connected, remaining, lastScore, leaveGame } = useGame();
-  const [submitted, setSubmitted] = useState(false);
+  const {
+    room,
+    identity,
+    connected,
+    remaining,
+    lastScore,
+    submittedThisRound,
+    restoreSession,
+    markSubmitted,
+    leaveGame,
+  } = useGame();
+  const [sessionChecked, setSessionChecked] = useState(false);
   const lastRoundRef = useRef(null);
 
-  // Redirect to join if there's no player session at all.
-  useEffect(() => {
-    if (!identity || identity.role !== 'player') navigate('/join', { replace: true });
-  }, [identity, navigate]);
+  useLayoutEffect(() => {
+    const saved = loadSession({ role: "player" });
+    if (saved?.code && saved?.playerId) {
+      restoreSession(saved);
+    }
+    setSessionChecked(true);
+  }, [restoreSession]);
 
-  // Reset the one-shot submission guard whenever a new round begins.
+  useEffect(() => {
+    if (!sessionChecked) return;
+    if (!identity || identity.role !== "player") {
+      navigate("/join", { replace: true });
+    }
+  }, [sessionChecked, identity, navigate]);
+
   const roomState = room?.state;
   const currentRound = room?.currentRound;
   useEffect(() => {
-    if (roomState === GameState.ROUND_STARTING && lastRoundRef.current !== currentRound) {
+    if (
+      roomState === GameState.ROUND_STARTING &&
+      lastRoundRef.current !== currentRound
+    ) {
       lastRoundRef.current = currentRound;
-      setSubmitted(false);
     }
   }, [roomState, currentRound]);
+
+  const submitted = submittedThisRound;
 
   const onSubmit = useCallback(
     async (blob) => {
       try {
         await apiClient.submitImage(identity.code, identity.playerId, blob);
-        setSubmitted(true);
-        toast.success('Submitted — awaiting AI score');
+        markSubmitted();
+        toast.success("Submitted — awaiting AI score");
       } catch (err) {
-        toast.error(err.message ?? 'Submission failed');
+        toast.error(err.message ?? "Submission failed");
       }
     },
-    [identity, toast],
+    [identity, markSubmitted, toast],
   );
 
-  if (!identity || identity.role !== 'player') return null;
+  if (!sessionChecked || !identity || identity.role !== "player") return null;
 
   if (!room || room.code !== identity.code) {
     return (
@@ -60,7 +89,7 @@ export const PlayerView = () => {
         <div className="flex flex-col items-center justify-center gap-4 pt-32">
           <Spinner />
           <p className="font-label uppercase tracking-widest text-text-secondary text-sm">
-            {connected ? 'Syncing room…' : 'Reconnecting…'}
+            {connected ? "Syncing room…" : "Reconnecting…"}
           </p>
         </div>
       </AppLayout>
@@ -88,17 +117,27 @@ export const PlayerView = () => {
         return <ProcessingScreen submitted={submitted} />;
       case GameState.RESULTS:
         return (
-          <ResultsScreen room={room} playerId={identity.playerId} lastScore={lastScore} isFinal={false} />
+          <ResultsScreen
+            room={room}
+            playerId={identity.playerId}
+            lastScore={lastScore}
+            isFinal={false}
+          />
         );
       case GameState.GAME_FINISHED:
         return (
           <div className="flex flex-col items-center gap-4">
-            <ResultsScreen room={room} playerId={identity.playerId} lastScore={lastScore} isFinal />
+            <ResultsScreen
+              room={room}
+              playerId={identity.playerId}
+              lastScore={lastScore}
+              isFinal
+            />
             <Button
               variant="ghost"
               onClick={() => {
                 leaveGame();
-                navigate('/');
+                navigate("/");
               }}
             >
               Exit to Home

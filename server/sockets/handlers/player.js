@@ -41,12 +41,16 @@ export const registerPlayerHandlers = ({
     socket.data.roomCode = room.code;
     socket.data.playerId = player.id;
 
+    const round = room.currentRound;
+    const hasSubmittedThisRound = round?.hasSubmitted(player.id) ?? false;
+
     ack(cb, {
       ok: true,
       playerId: player.id,
       code: room.code,
       state: room.state,
       resumed: Boolean(resumed),
+      hasSubmittedThisRound,
     });
     broadcaster.roomState(room);
     if (!resumed) {
@@ -67,11 +71,12 @@ export const registerPlayerHandlers = ({
         message: "Room not found",
       });
 
-    const { player, error, code } = gameService.rejoinRoom({
-      room,
-      playerId: payload.playerId,
-      socketId: socket.id,
-    });
+    const { player, error, code, hasSubmittedThisRound } =
+      gameService.rejoinRoom({
+        room,
+        playerId: payload.playerId,
+        socketId: socket.id,
+      });
     if (error) return ack(cb, { ok: false, code, message: error });
 
     socket.join(room.code);
@@ -83,6 +88,7 @@ export const registerPlayerHandlers = ({
       playerId: player.id,
       code: room.code,
       state: room.state,
+      hasSubmittedThisRound,
     });
     broadcaster.roomState(room);
   });

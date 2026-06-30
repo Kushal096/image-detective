@@ -7,9 +7,8 @@ import { GameContext } from "./gameContext.js";
 
 /**
  * Owns the live game session: the socket connection, the authoritative room
- * snapshot, the synchronized timer, and the player's identity. All gameplay
- * actions funnel through here so components stay declarative and never touch
- * the socket directly.
+ * snapshot, the synchronized timer, and host/player identity. All gameplay
+ * actions funnel through here so components stay declarative.
  */
 export const GameProvider = ({ children }) => {
   const toast = useToast();
@@ -17,9 +16,9 @@ export const GameProvider = ({ children }) => {
   const [room, setRoom] = useState(null);
   const [remaining, setRemaining] = useState(null);
   const [lastScore, setLastScore] = useState(null);
-  const [identity, setIdentity] = useState(() => loadSession());
+  const [submittedThisRound, setSubmittedThisRound] = useState(false);
+  const [identity, setIdentity] = useState(null);
 
-  // Mirror identity into a ref so socket listeners read the latest value.
   const identityRef = useRef(identity);
   useEffect(() => {
     identityRef.current = identity;
@@ -31,40 +30,76 @@ export const GameProvider = ({ children }) => {
     else clearSession(identityRef.current?.code);
   }, []);
 
+  const restoreSession = useCallback(
+    (session) => {
+      if (session) persistIdentity(session);
+    },
+    [persistIdentity],
+  );
+
+  const rejoinHost = useCallback(async () => {
+    const id = identityRef.current;
+    if (id?.role !== "host" || !id.code || !id.hostId) {
+      return { ok: false, code: "NO_SESSION" };
+    }
+    const res = await emitWithAck(SocketEvents.HOST_REJOIN, {
+      code: id.code,
+      hostId: id.hostId,
+    });
+    if (res?.ok) {
+      setRemaining(null);
+    }
+    return res;
+  }, []);
+
+  const rejoinPlayer = useCallback(async () => {
+    const id = identityRef.current;
+    if (id?.role !== "player" || !id.code || !id.playerId) {
+      return { ok: false, code: "NO_SESSION" };
+    }
+    const res = await emitWithAck(SocketEvents.PLAYER_REJOIN, {
+      code: id.code,
+      playerId: id.playerId,
+    });
+    if (res?.ok) {
+      setSubmittedThisRound(Boolean(res.hasSubmittedThisRound));
+      setRemaining(null);
+    }
+    return res;
+  }, []);
+
   // ── Socket lifecycle & subscriptions ──────────────────
   useEffect(() => {
     const socket = getSocket();
 
-    const onConnect = () => {
+    const onConnect = async () => {
       setConnected(true);
       const id = identityRef.current;
-      if (id?.role === "player" && id.code && id.playerId) {
-        emitWithAck(SocketEvents.PLAYER_REJOIN, {
-          code: id.code,
-          playerId: id.playerId,
-        });
+      if (id?.role === "host" && id.code && id.hostId) {
+        await rejoinHost();
+      } else if (id?.role === "player" && id.code && id.playerId) {
+        await rejoinPlayer();
       }
     };
 
     const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
-      const socket = getSocket();
-      if (!socket.connected) socket.connect();
+      const s = getSocket();
+      if (!s.connected) s.connect();
       const id = identityRef.current;
-      if (id?.role === "player" && id.code && id.playerId) {
-        emitWithAck(SocketEvents.PLAYER_REJOIN, {
-          code: id.code,
-          playerId: id.playerId,
-        });
+      if (id?.role === "host" && id.code && id.hostId) {
+        rejoinHost();
+      } else if (id?.role === "player" && id.code && id.playerId) {
+        rejoinPlayer();
       }
     };
+
     const onDisconnect = () => setConnected(false);
     const onRoomState = (snapshot) => {
       setRoom(snapshot);
-      // The server is authoritative for the timer. Show the full duration at
-      // round start; otherwise seed from the snapshot only if we have no value.
       if (snapshot.state === GameState.ROUND_STARTING) {
         setRemaining(snapshot.roundSeconds ?? null);
+        setSubmittedThisRound(false);
       } else if (typeof snapshot.remainingSeconds === "number") {
         setRemaining((prev) =>
           prev === null ? snapshot.remainingSeconds : prev,
@@ -75,6 +110,7 @@ export const GameProvider = ({ children }) => {
     const onTimer = ({ remaining: r }) => setRemaining(r);
     const onScored = (payload) => {
       setLastScore(payload);
+      setSubmittedThisRound(true);
       if (payload.hintReuse) {
         toast.error("Clue image reuse detected — 0 points");
       } else {
@@ -105,7 +141,7 @@ export const GameProvider = ({ children }) => {
       socket.off(SocketEvents.ROOM_ERROR, onError);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [toast]);
+  }, [toast, rejoinHost, rejoinPlayer]);
 
   // ── Actions ───────────────────────────────────────────
   const createRoom = useCallback(
@@ -114,8 +150,9 @@ export const GameProvider = ({ children }) => {
         roundSeconds,
         totalRounds,
       });
-      if (res?.ok)
+      if (res?.ok) {
         persistIdentity({ role: "host", code: res.code, hostId: res.hostId });
+      }
       return res;
     },
     [persistIdentity],
@@ -131,6 +168,7 @@ export const GameProvider = ({ children }) => {
           playerId: res.playerId,
           name,
         });
+        setSubmittedThisRound(Boolean(res.hasSubmittedThisRound));
         if (res.resumed) toast.success("Welcome back — session restored");
       } else toast.error(res?.message ?? "Could not join room");
       return res;
@@ -153,11 +191,14 @@ export const GameProvider = ({ children }) => {
     [toast],
   );
 
+  const markSubmitted = useCallback(() => setSubmittedThisRound(true), []);
+
   const leaveGame = useCallback(() => {
     persistIdentity(null);
     setRoom(null);
     setRemaining(null);
     setLastScore(null);
+    setSubmittedThisRound(false);
   }, [persistIdentity]);
 
   const value = useMemo(
@@ -167,9 +208,14 @@ export const GameProvider = ({ children }) => {
       remaining,
       lastScore,
       identity,
+      submittedThisRound,
       isHost: identity?.role === "host",
       createRoom,
       joinRoom,
+      restoreSession,
+      rejoinHost,
+      rejoinPlayer,
+      markSubmitted,
       addRound: (title) => hostAction(SocketEvents.HOST_ADD_ROUND, { title }),
       removeRound: (roundIndex) =>
         hostAction(SocketEvents.HOST_REMOVE_ROUND, { roundIndex }),
@@ -203,8 +249,13 @@ export const GameProvider = ({ children }) => {
       remaining,
       lastScore,
       identity,
+      submittedThisRound,
       createRoom,
       joinRoom,
+      restoreSession,
+      rejoinHost,
+      rejoinPlayer,
+      markSubmitted,
       hostAction,
       leaveGame,
     ],
