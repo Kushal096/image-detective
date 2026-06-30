@@ -77,13 +77,21 @@ export const createRoomRoutes = ({
           makePreviewDataUrl(req.file.buffer),
           scoringService.embedHint(hint.buffer),
         ]);
-        
-        // Support roundIndex query param for tournament mode
-        const roundIndex = req.body.roundIndex !== undefined ? parseInt(req.body.roundIndex, 10) : undefined;
-        
+
+        // Support roundIndex + subRoundIndex for tournament mode
+        const roundIndex =
+          req.body.roundIndex !== undefined
+            ? parseInt(req.body.roundIndex, 10)
+            : undefined;
+        const subRoundIndex =
+          req.body.subRoundIndex !== undefined
+            ? parseInt(req.body.subRoundIndex, 10)
+            : undefined;
+
         const result = await gameService.setTarget({
           room,
           roundIndex,
+          subRoundIndex,
           embedding,
           previewDataUrl: preview,
           hintDataUrl: hint.dataUrl,

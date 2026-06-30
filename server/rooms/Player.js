@@ -20,7 +20,6 @@ export class Player {
       id: this.id,
       name: this.name,
       connected: this.connected,
-      totalScore: this.totalScore,
     };
   }
 }

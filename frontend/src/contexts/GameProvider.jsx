@@ -28,7 +28,7 @@ export const GameProvider = ({ children }) => {
   const persistIdentity = useCallback((next) => {
     setIdentity(next);
     if (next) saveSession(next);
-    else clearSession();
+    else clearSession(identityRef.current?.code);
   }, []);
 
   // ── Socket lifecycle & subscriptions ──────────────────
@@ -38,7 +38,19 @@ export const GameProvider = ({ children }) => {
     const onConnect = () => {
       setConnected(true);
       const id = identityRef.current;
-      // Recover a player session transparently after a reconnect.
+      if (id?.role === "player" && id.code && id.playerId) {
+        emitWithAck(SocketEvents.PLAYER_REJOIN, {
+          code: id.code,
+          playerId: id.playerId,
+        });
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      const socket = getSocket();
+      if (!socket.connected) socket.connect();
+      const id = identityRef.current;
       if (id?.role === "player" && id.code && id.playerId) {
         emitWithAck(SocketEvents.PLAYER_REJOIN, {
           code: id.code,
@@ -79,6 +91,7 @@ export const GameProvider = ({ children }) => {
     socket.on(SocketEvents.TIMER_TICK, onTimer);
     socket.on(SocketEvents.SUBMISSION_SCORED, onScored);
     socket.on(SocketEvents.ROOM_ERROR, onError);
+    document.addEventListener("visibilitychange", onVisibility);
 
     if (!socket.connected) socket.connect();
 
@@ -90,6 +103,7 @@ export const GameProvider = ({ children }) => {
       socket.off(SocketEvents.TIMER_TICK, onTimer);
       socket.off(SocketEvents.SUBMISSION_SCORED, onScored);
       socket.off(SocketEvents.ROOM_ERROR, onError);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [toast]);
 
@@ -110,14 +124,15 @@ export const GameProvider = ({ children }) => {
   const joinRoom = useCallback(
     async ({ code, name }) => {
       const res = await emitWithAck(SocketEvents.PLAYER_JOIN, { code, name });
-      if (res?.ok)
+      if (res?.ok) {
         persistIdentity({
           role: "player",
           code: res.code,
           playerId: res.playerId,
           name,
         });
-      else toast.error(res?.message ?? "Could not join room");
+        if (res.resumed) toast.success("Welcome back — session restored");
+      } else toast.error(res?.message ?? "Could not join room");
       return res;
     },
     [persistIdentity, toast],
@@ -156,9 +171,25 @@ export const GameProvider = ({ children }) => {
       createRoom,
       joinRoom,
       addRound: (title) => hostAction(SocketEvents.HOST_ADD_ROUND, { title }),
-      removeRound: (roundIndex) => hostAction(SocketEvents.HOST_REMOVE_ROUND, { roundIndex }),
-      updateRound: (roundIndex, title) => hostAction(SocketEvents.HOST_UPDATE_ROUND, { roundIndex, title }),
-      reorderRounds: (newOrder) => hostAction(SocketEvents.HOST_REORDER_ROUNDS, { newOrder }),
+      removeRound: (roundIndex) =>
+        hostAction(SocketEvents.HOST_REMOVE_ROUND, { roundIndex }),
+      updateRound: (roundIndex, title) =>
+        hostAction(SocketEvents.HOST_UPDATE_ROUND, { roundIndex, title }),
+      reorderRounds: (newOrder) =>
+        hostAction(SocketEvents.HOST_REORDER_ROUNDS, { newOrder }),
+      addSubRound: (roundIndex, title) =>
+        hostAction(SocketEvents.HOST_ADD_SUB_ROUND, { roundIndex, title }),
+      removeSubRound: (roundIndex, subRoundIndex) =>
+        hostAction(SocketEvents.HOST_REMOVE_SUB_ROUND, {
+          roundIndex,
+          subRoundIndex,
+        }),
+      updateSubRound: (roundIndex, subRoundIndex, title) =>
+        hostAction(SocketEvents.HOST_UPDATE_SUB_ROUND, {
+          roundIndex,
+          subRoundIndex,
+          title,
+        }),
       startGame: () => hostAction(SocketEvents.HOST_START_GAME),
       startRound: () => hostAction(SocketEvents.HOST_START_ROUND),
       skipRound: () => hostAction(SocketEvents.HOST_SKIP_ROUND),

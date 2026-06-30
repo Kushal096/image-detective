@@ -16,7 +16,9 @@ export const SearchScreen = ({
 }) => (
   <div className="max-w-lg mx-auto pt-6 flex flex-col gap-4 animate-fade-in">
     <div className="flex items-center justify-between">
-      <Badge tone="primary">Round {room.currentRound}</Badge>
+      <Badge tone="primary">
+        {room.currentRoundTitle || `Round ${room.currentRound}`}
+      </Badge>
       <Badge tone="secondary">Find the match</Badge>
     </div>
 

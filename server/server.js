@@ -69,7 +69,7 @@ const bootstrap = async () => {
   const httpServer = createServer(app);
   const io = new SocketServer(httpServer, {
     cors: { origin: env.clientOrigin, methods: ["GET", "POST"] },
-    connectionStateRecovery: { maxDisconnectionDuration: 2 * 60 * 1000 },
+    connectionStateRecovery: { maxDisconnectionDuration: 10 * 60 * 1000 },
   });
   broadcaster.io = io;
 

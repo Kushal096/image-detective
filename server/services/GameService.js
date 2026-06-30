@@ -37,16 +37,22 @@ export class GameService {
     return room;
   }
 
-  /** Adds a player to a room (or fails with a typed reason). */
+  /** Adds a player to a room, or re-binds an existing player by name to resume. */
   joinRoom({ room, name, socketId }) {
+    const existing = room.getPlayerByName(name);
+
+    // Mid-game resume: same display name reclaims their seat.
+    if (existing) {
+      existing.socketId = socketId;
+      existing.connected = true;
+      return { player: existing, resumed: true };
+    }
+
     if (room.state !== GameState.WAITING_ROOM) {
       return { error: "Game already in progress", code: "IN_PROGRESS" };
     }
     if (room.playerCount >= env.game.maxPlayersPerRoom) {
       return { error: "Room is full", code: "ROOM_FULL" };
-    }
-    if (room.hasName(name)) {
-      return { error: "Name already taken in this room", code: "NAME_TAKEN" };
     }
     const player = room.addPlayer({ id: newUuid(), name, socketId });
     return { player };
@@ -72,25 +78,30 @@ export class GameService {
   async setTarget({
     room,
     roundIndex,
+    subRoundIndex,
     embedding,
     previewDataUrl,
     hintDataUrl,
     hintEmbedding,
   }) {
-    // If roundIndex is specified, use that round; otherwise use current/create new
-    let round;
+    let subRound;
     if (roundIndex !== undefined && roundIndex !== null) {
-      round = room.rounds[roundIndex];
-      if (!round) {
-        return { error: 'Round not found', code: 'NOT_FOUND' };
+      const group = room.rounds[roundIndex];
+      if (!group) {
+        return { error: "Round group not found", code: "NOT_FOUND" };
+      }
+      const idx = subRoundIndex ?? 0;
+      subRound = group.subRounds[idx];
+      if (!subRound) {
+        return { error: "Sub-round not found", code: "NOT_FOUND" };
       }
     } else {
-      round = this.#ensureUpcomingRound(room);
+      subRound = this.#ensureUpcomingRound(room);
     }
-    
-    round.setTarget(embedding, previewDataUrl, hintDataUrl, hintEmbedding);
+
+    subRound.setTarget(embedding, previewDataUrl, hintDataUrl, hintEmbedding);
     this.bus.roomState(room);
-    return { round };
+    return { round: subRound };
   }
 
   startRound({ room }) {
@@ -174,25 +185,25 @@ export class GameService {
     if (room.isLastRound) {
       return this.endGame({ room });
     }
-    
+
     // If game has started (tournament mode), advance to next prepared round
     if (room.gameStarted) {
       const currentRound = room.currentRound;
       if (currentRound) {
-        currentRound.status = 'completed';
+        currentRound.status = "completed";
       }
-      
+
       room.currentRoundIndex++;
       const nextRound = room.currentRound;
       if (nextRound) {
-        nextRound.status = 'active';
+        nextRound.status = "active";
       }
-      
+
       room.setState(GameState.WAITING_ROOM);
       this.bus.stateChanged(room);
       return { ok: true };
     }
-    
+
     // Legacy mode: create new round on the fly
     room.createNextRound();
     room.setState(GameState.WAITING_ROOM);
@@ -242,7 +253,7 @@ export class GameService {
     }
 
     // Convert buffer to data URL for later display in results
-    const imageUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+    const imageUrl = `data:image/jpeg;base64,${buffer.toString("base64")}`;
 
     round.lockPending(player.id);
     this.queue.enqueue({
@@ -264,10 +275,17 @@ export class GameService {
       job.targetEmbedding,
       job.hintEmbedding,
     );
-    this.#applyScore(job.roomCode, job.playerId, { ...result, imageUrl: job.imageUrl });
+    this.#applyScore(job.roomCode, job.playerId, {
+      ...result,
+      imageUrl: job.imageUrl,
+    });
   };
 
-  #applyScore(roomCode, playerId, { similarity, score, hintReuse = false, imageUrl = null }) {
+  #applyScore(
+    roomCode,
+    playerId,
+    { similarity, score, hintReuse = false, imageUrl = null },
+  ) {
     const room = this.rooms.getRoom(roomCode);
     if (!room) return;
     const round = room.currentRound;

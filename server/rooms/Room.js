@@ -1,6 +1,6 @@
 import { GameState } from "../config/constants.js";
 import { Player } from "./Player.js";
-import { Round } from "./Round.js";
+import { RoundGroup } from "./RoundGroup.js";
 
 /**
  * Authoritative room aggregate. Owns the game state machine, the player roster,
@@ -10,15 +10,17 @@ import { Round } from "./Round.js";
 export class Room {
   constructor({ code, hostId, roundSeconds, totalRounds = 5 }) {
     this.code = code;
-    this.hostId = hostId; // secret host session token
+    this.hostId = hostId;
     this.hostSocketId = null;
     this.state = GameState.WAITING_ROOM;
     this.roundSeconds = roundSeconds;
     this.totalRounds = totalRounds;
-    this.players = new Map(); // playerId -> Player
-    this.rounds = []; // Round[]
+    this.players = new Map();
+    /** @type {RoundGroup[]} */
+    this.rounds = [];
+    /** Flat index into all sub-rounds across all round groups. */
     this.currentRoundIndex = -1;
-    this.gameStarted = false; // locks round editing once game begins
+    this.gameStarted = false;
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
   }
@@ -27,8 +29,25 @@ export class Room {
     this.lastActivity = Date.now();
   }
 
+  /** All sub-rounds flattened in play order. */
+  flatSubRounds() {
+    return this.rounds.flatMap((group) =>
+      group.subRounds.map((sr) => ({ group, subRound: sr })),
+    );
+  }
+
+  get currentRoundEntry() {
+    const flat = this.flatSubRounds();
+    return flat[this.currentRoundIndex] ?? null;
+  }
+
+  /** The currently active sub-round (playable unit). */
   get currentRound() {
-    return this.rounds[this.currentRoundIndex] ?? null;
+    return this.currentRoundEntry?.subRound ?? null;
+  }
+
+  get currentRoundGroup() {
+    return this.currentRoundEntry?.group ?? null;
   }
 
   get playerCount() {
@@ -47,112 +66,196 @@ export class Room {
     return this.players.get(id) ?? null;
   }
 
+  getPlayerByName(name) {
+    const lowered = name.toLowerCase();
+    return (
+      [...this.players.values()].find(
+        (p) => p.name.toLowerCase() === lowered,
+      ) ?? null
+    );
+  }
+
   removePlayer(id) {
     this.players.delete(id);
     this.touch();
   }
 
   hasName(name) {
-    const lowered = name.toLowerCase();
-    return [...this.players.values()].some(
-      (p) => p.name.toLowerCase() === lowered,
-    );
+    return Boolean(this.getPlayerByName(name));
   }
 
-  // ── Rounds / state machine ────────────────────────────
+  // ── Round groups / sub-rounds ───────────────────────────
   createNextRound() {
-    const round = new Round({
+    const group = new RoundGroup({
       index: this.rounds.length,
       durationSeconds: this.roundSeconds,
     });
-    this.rounds.push(round);
-    this.currentRoundIndex = round.index;
+    group.addSubRound({ title: "Sub-round 1" });
+    this.rounds.push(group);
+    this.currentRoundIndex = this.flatSubRounds().length - 1;
     this.touch();
-    return round;
+    return group.subRounds[0];
   }
 
-  /** Add a new round (only allowed before game starts). */
   addRound({ title = null } = {}) {
     if (this.gameStarted) {
-      return { error: 'Cannot add rounds after game starts', code: 'GAME_STARTED' };
+      return {
+        error: "Cannot add rounds after game starts",
+        code: "GAME_STARTED",
+      };
     }
-    const round = new Round({
+    const group = new RoundGroup({
       index: this.rounds.length,
-      durationSeconds: this.roundSeconds,
       title,
+      durationSeconds: this.roundSeconds,
     });
-    this.rounds.push(round);
-    this.totalRounds = this.rounds.length;
+    group.addSubRound({ title: "Sub-round 1" });
+    this.rounds.push(group);
+    this.totalRounds = this.flatSubRounds().length;
     this.touch();
-    return { round };
+    return { round: group };
   }
 
-  /** Remove a round by index (only allowed before game starts). */
   removeRound(index) {
     if (this.gameStarted) {
-      return { error: 'Cannot remove rounds after game starts', code: 'GAME_STARTED' };
+      return {
+        error: "Cannot remove rounds after game starts",
+        code: "GAME_STARTED",
+      };
     }
     if (index < 0 || index >= this.rounds.length) {
-      return { error: 'Invalid round index', code: 'INVALID_INDEX' };
+      return { error: "Invalid round index", code: "INVALID_INDEX" };
     }
     this.rounds.splice(index, 1);
-    this.rounds.forEach((r, i) => (r.index = i));
-    this.totalRounds = this.rounds.length;
+    this.rounds.forEach((g, i) => (g.index = i));
+    this.totalRounds = this.flatSubRounds().length;
     this.touch();
     return { ok: true };
   }
 
-  /** Update a round's title (only allowed before game starts). */
   updateRound(index, { title }) {
     if (this.gameStarted) {
-      return { error: 'Cannot update rounds after game starts', code: 'GAME_STARTED' };
+      return {
+        error: "Cannot update rounds after game starts",
+        code: "GAME_STARTED",
+      };
     }
-    const round = this.rounds[index];
-    if (!round) {
-      return { error: 'Round not found', code: 'NOT_FOUND' };
+    const group = this.rounds[index];
+    if (!group) {
+      return { error: "Round not found", code: "NOT_FOUND" };
     }
-    if (title !== undefined) round.title = title;
+    if (title !== undefined) group.title = title;
     this.touch();
-    return { round };
+    return { round: group };
   }
 
-  /** Reorder rounds (only allowed before game starts). */
   reorderRounds(newOrder) {
     if (this.gameStarted) {
-      return { error: 'Cannot reorder rounds after game starts', code: 'GAME_STARTED' };
+      return {
+        error: "Cannot reorder rounds after game starts",
+        code: "GAME_STARTED",
+      };
     }
     if (!Array.isArray(newOrder) || newOrder.length !== this.rounds.length) {
-      return { error: 'Invalid reorder array', code: 'INVALID_ORDER' };
+      return { error: "Invalid reorder array", code: "INVALID_ORDER" };
     }
     const reordered = newOrder.map((idx) => this.rounds[idx]).filter(Boolean);
     if (reordered.length !== this.rounds.length) {
-      return { error: 'Invalid reorder indices', code: 'INVALID_ORDER' };
+      return { error: "Invalid reorder indices", code: "INVALID_ORDER" };
     }
     this.rounds = reordered;
-    this.rounds.forEach((r, i) => (r.index = i));
+    this.rounds.forEach((g, i) => (g.index = i));
     this.touch();
     return { ok: true };
   }
 
-  /** Check if all rounds have target images. */
-  allRoundsReady() {
-    if (this.rounds.length === 0) return false;
-    return this.rounds.every((r) => r.hasTarget);
+  addSubRound(groupIndex, { title = null } = {}) {
+    if (this.gameStarted) {
+      return {
+        error: "Cannot add sub-rounds after game starts",
+        code: "GAME_STARTED",
+      };
+    }
+    const group = this.rounds[groupIndex];
+    if (!group) {
+      return { error: "Round group not found", code: "NOT_FOUND" };
+    }
+    const subRound = group.addSubRound({ title });
+    this.totalRounds = this.flatSubRounds().length;
+    this.touch();
+    return { subRound };
   }
 
-  /** Start the game (locks round editing and advances to first round). */
+  removeSubRound(groupIndex, subRoundIndex) {
+    if (this.gameStarted) {
+      return {
+        error: "Cannot remove sub-rounds after game starts",
+        code: "GAME_STARTED",
+      };
+    }
+    const group = this.rounds[groupIndex];
+    if (!group) {
+      return { error: "Round group not found", code: "NOT_FOUND" };
+    }
+    if (group.subRounds.length <= 1) {
+      return {
+        error: "Round must have at least one sub-round",
+        code: "MIN_SUBROUNDS",
+      };
+    }
+    if (!group.removeSubRound(subRoundIndex)) {
+      return { error: "Invalid sub-round index", code: "INVALID_INDEX" };
+    }
+    this.totalRounds = this.flatSubRounds().length;
+    this.touch();
+    return { ok: true };
+  }
+
+  updateSubRound(groupIndex, subRoundIndex, { title }) {
+    if (this.gameStarted) {
+      return {
+        error: "Cannot update sub-rounds after game starts",
+        code: "GAME_STARTED",
+      };
+    }
+    const group = this.rounds[groupIndex];
+    if (!group) {
+      return { error: "Round group not found", code: "NOT_FOUND" };
+    }
+    const subRound = group.updateSubRound(subRoundIndex, { title });
+    if (!subRound) {
+      return { error: "Sub-round not found", code: "NOT_FOUND" };
+    }
+    this.touch();
+    return { subRound };
+  }
+
+  /** Resolve a sub-round by flat index (for target upload). */
+  getSubRoundByFlatIndex(flatIndex) {
+    const entry = this.flatSubRounds()[flatIndex];
+    return entry ?? null;
+  }
+
+  allRoundsReady() {
+    if (this.rounds.length === 0) return false;
+    return this.rounds.every((g) => g.allSubRoundsReady());
+  }
+
   startGame() {
     if (this.gameStarted) {
-      return { error: 'Game already started', code: 'ALREADY_STARTED' };
+      return { error: "Game already started", code: "ALREADY_STARTED" };
     }
     if (!this.allRoundsReady()) {
-      return { error: 'All rounds must have target images', code: 'INCOMPLETE_ROUNDS' };
+      return {
+        error: "All sub-rounds must have target images",
+        code: "INCOMPLETE_ROUNDS",
+      };
     }
     this.gameStarted = true;
     this.currentRoundIndex = 0;
-    if (this.rounds[0]) {
-      this.rounds[0].status = 'active';
-    }
+    this.totalRounds = this.flatSubRounds().length;
+    const first = this.currentRound;
+    if (first) first.status = "active";
     this.touch();
     return { ok: true };
   }
@@ -163,19 +266,16 @@ export class Room {
   }
 
   get isLastRound() {
-    return this.currentRoundIndex >= this.totalRounds - 1;
+    return this.currentRoundIndex >= this.flatSubRounds().length - 1;
   }
 
-  /**
-   * Leaderboard sorted by total score desc, with stable movement indicators
-   * derived from each player's previous rank.
-   */
   leaderboard() {
     const sorted = [...this.players.values()].sort(
       (a, b) => b.totalScore - a.totalScore || a.joinedAt - b.joinedAt,
     );
 
-    const entries = sorted.map((player, idx) => {
+    const round = this.currentRound;
+    return sorted.map((player, idx) => {
       const rank = idx + 1;
       const movement =
         player.previousRank === null
@@ -185,7 +285,6 @@ export class Room {
             : player.previousRank < rank
               ? "down"
               : "same";
-      const round = this.currentRound;
       const roundResult = round ? round.submissions.get(player.id) : null;
       return {
         rank,
@@ -197,11 +296,8 @@ export class Room {
         connected: player.connected,
       };
     });
-
-    return entries;
   }
 
-  /** Snapshots current ranks so the next leaderboard can show movement. */
   commitRanks() {
     this.leaderboard().forEach((entry) => {
       const player = this.players.get(entry.playerId);
@@ -209,18 +305,22 @@ export class Room {
     });
   }
 
-  /** Client-safe room snapshot. Host-only fields are added by the caller. */
   toPublic() {
     const round = this.currentRound;
+    const group = this.currentRoundGroup;
     const hintVisible = PLAYER_HINT_VISIBLE_STATES.has(this.state);
     const originalVisible = ORIGINAL_IMAGE_VISIBLE_STATES.has(this.state);
+    const flat = this.flatSubRounds();
+
     return {
       code: this.code,
       state: this.state,
       roundSeconds: this.roundSeconds,
-      totalRounds: this.totalRounds,
+      totalRounds: flat.length,
       currentRound: this.currentRoundIndex + 1,
       currentRoundIndex: this.currentRoundIndex,
+      currentRoundTitle: round?.title ?? null,
+      currentRoundGroupTitle: group?.title ?? null,
       gameStarted: this.gameStarted,
       hasTarget: round?.hasTarget ?? false,
       targetHint: hintVisible ? (round?.targetHint ?? null) : null,
@@ -231,19 +331,25 @@ export class Room {
     };
   }
 
-  /** Host-specific room snapshot with all round details. */
   toHostPublic() {
     const publicData = this.toPublic();
+    const entry = this.currentRoundEntry;
     return {
       ...publicData,
-      rounds: this.rounds.map((r) => r.toHostPublic()),
+      rounds: this.rounds.map((g) => g.toHostPublic()),
       allRoundsReady: this.allRoundsReady(),
       targetPreview: this.currentRound?.targetPreview ?? null,
+      currentSubRound: entry
+        ? {
+            groupIndex: entry.group.index,
+            subRoundIndex: entry.subRound.index,
+            ...entry.subRound.toHostPublic(),
+          }
+        : null,
     };
   }
 }
 
-/** Player hint is revealed only after the host starts the round. */
 const PLAYER_HINT_VISIBLE_STATES = new Set([
   GameState.ROUND_STARTING,
   GameState.SEARCHING,
@@ -251,7 +357,6 @@ const PLAYER_HINT_VISIBLE_STATES = new Set([
   GameState.AI_PROCESSING,
 ]);
 
-/** Original image is revealed after the round ends. */
 const ORIGINAL_IMAGE_VISIBLE_STATES = new Set([
   GameState.RESULTS,
   GameState.GAME_FINISHED,
