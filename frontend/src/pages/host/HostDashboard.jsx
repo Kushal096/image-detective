@@ -15,7 +15,7 @@ import { FinalTournamentResults } from './FinalTournamentResults.jsx';
  */
 export const HostDashboard = () => {
   const navigate = useNavigate();
-  const { room, identity, connected, createRoom } = useGame();
+  const { room, identity, connected, createRoom, leaveGame } = useGame();
   const createdRef = useRef(false);
   const [currentPage, setCurrentPage] = useState('setup');
 
@@ -53,8 +53,18 @@ export const HostDashboard = () => {
 
   const isFinished = room.state === GameState.GAME_FINISHED;
 
+  const handleExit = () => {
+    leaveGame();
+    navigate('/');
+  };
+
+  const handleNewGame = () => {
+    leaveGame();
+    window.location.reload();
+  };
+
   if (isFinished) {
-    return <FinalTournamentResults onExit={() => navigate('/')} onNewGame={() => window.location.reload()} />;
+    return <FinalTournamentResults onExit={handleExit} onNewGame={handleNewGame} />;
   }
 
   if (currentPage === 'setup') {
