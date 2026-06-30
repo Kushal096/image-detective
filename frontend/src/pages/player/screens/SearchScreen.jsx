@@ -22,7 +22,7 @@ export const SearchScreen = ({
       <Badge tone="secondary">Find the match</Badge>
     </div>
 
-    {room.targetHint && (
+    {room.targetHint && !submitted && (
       <Card glow="secondary">
         <p className="font-label text-[10px] uppercase tracking-widest text-text-muted mb-2 text-center">
           Target clue

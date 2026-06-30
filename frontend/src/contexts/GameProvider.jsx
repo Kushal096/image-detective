@@ -113,8 +113,6 @@ export const GameProvider = ({ children }) => {
       setSubmittedThisRound(true);
       if (payload.hintReuse) {
         toast.error("Clue image reuse detected — 0 points");
-      } else {
-        toast.success(`Scored ${payload.score} points`);
       }
     };
     const onError = ({ message }) =>

@@ -365,8 +365,14 @@ export class Room {
   }
 
   toPlayerPublic(playerId) {
+    const snapshot = this.#snapshotBase();
+    const round = this.currentRound;
+    // Hide the clue once this player has submitted — original reveals in RESULTS only.
+    if (round?.hasSubmitted(playerId)) {
+      snapshot.targetHint = null;
+    }
     return {
-      ...this.#snapshotBase(),
+      ...snapshot,
       leaderboard: this.leaderboardForPlayer(playerId),
     };
   }

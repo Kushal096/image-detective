@@ -102,12 +102,24 @@ export const PlayerView = () => {
       case GameState.NEXT_ROUND:
         return <Lobby room={room} playerId={identity.playerId} />;
       case GameState.ROUND_STARTING:
-      case GameState.SEARCHING:
         return (
           <SearchScreen
             room={room}
             remaining={remaining}
-            submitted={submitted || room.state === GameState.ROUND_STARTING}
+            submitted
+            onSubmit={onSubmit}
+            onError={(m) => toast.error(m)}
+          />
+        );
+      case GameState.SEARCHING:
+        if (submitted) {
+          return <ProcessingScreen submitted waitingForRound />;
+        }
+        return (
+          <SearchScreen
+            room={room}
+            remaining={remaining}
+            submitted={false}
             onSubmit={onSubmit}
             onError={(m) => toast.error(m)}
           />

@@ -1,6 +1,7 @@
 import { Trophy } from "lucide-react";
 import { Card, CardHeader } from "../../../components/ui/Card.jsx";
 import { Leaderboard } from "../../../components/game/Leaderboard.jsx";
+import { GameState } from "../../../services/socket/events.js";
 
 /**
  * Per-round results for the player. Shows only their own name and score
@@ -10,10 +11,14 @@ export const ResultsScreen = ({ room, playerId, lastScore, isFinal }) => {
   const me = room.leaderboard.find((e) => e.playerId === playerId);
   const roundScore = lastScore?.score ?? me?.roundScore;
   const roundTitle = room.currentRoundTitle || room.currentRoundGroupTitle;
+  const showOriginal =
+    room.targetPreview &&
+    (room.state === GameState.RESULTS ||
+      room.state === GameState.GAME_FINISHED);
 
   return (
     <div className="max-w-md mx-auto pt-6 flex flex-col gap-4 animate-fade-in">
-      {room.targetPreview && (
+      {showOriginal && (
         <Card className="animate-scale-in">
           <CardHeader title="Original Image" />
           <div className="p-4">
