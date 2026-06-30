@@ -15,7 +15,7 @@ const MOVEMENT = {
   same: { icon: Minus, className: "text-text-muted" },
 };
 
-const Row = ({ entry, highlightId, isWinner, hideScores, submittedIds }) => {
+const Row = ({ entry, highlightId, isWinner, hideScores, hideRanks, submittedIds }) => {
   const Move = MOVEMENT[entry.movement] ?? MOVEMENT.same;
   const isYou = entry.playerId === highlightId;
   const hasSubmitted = submittedIds?.has(entry.playerId);
@@ -30,18 +30,22 @@ const Row = ({ entry, highlightId, isWinner, hideScores, submittedIds }) => {
           "border-primary/70 shadow-(--shadow-glow) bg-primary/5",
       )}
     >
-      <span
-        className={cn(
-          "font-display text-lg w-8 text-center tabular-nums",
-          isWinner ? "text-primary" : "text-text-secondary",
-        )}
-      >
-        {entry.rank}
-      </span>
-      <Move.icon
-        className={cn("size-4 shrink-0", Move.className)}
-        aria-hidden
-      />
+      {!hideRanks && (
+        <>
+          <span
+            className={cn(
+              "font-display text-lg w-8 text-center tabular-nums",
+              isWinner ? "text-primary" : "text-text-secondary",
+            )}
+          >
+            {entry.rank}
+          </span>
+          <Move.icon
+            className={cn("size-4 shrink-0", Move.className)}
+            aria-hidden
+          />
+        </>
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           {isWinner && (
@@ -92,6 +96,7 @@ export const Leaderboard = ({
   crownWinner = false,
   emptyLabel,
   hideScores = false,
+  hideRanks = false,
   submittedIds,
 }) => {
   if (!entries.length) {
@@ -118,6 +123,7 @@ export const Leaderboard = ({
           highlightId={highlightId}
           isWinner={crownWinner && entry.rank === 1}
           hideScores={hideScores}
+          hideRanks={hideRanks}
           submittedIds={submittedSet}
         />
       ))}

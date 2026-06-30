@@ -305,7 +305,34 @@ export class Room {
     });
   }
 
-  toPublic() {
+  /**
+   * Leaderboard data safe to send to a player socket.
+   * Full standings are revealed only when the tournament ends; during RESULTS
+   * each player sees only their own round score.
+   */
+  leaderboardForPlayer(playerId) {
+    if (this.state === GameState.GAME_FINISHED) {
+      return this.leaderboard();
+    }
+    if (this.state === GameState.RESULTS && playerId) {
+      const me = this.leaderboard().find((entry) => entry.playerId === playerId);
+      if (!me) return [];
+      return [
+        {
+          playerId: me.playerId,
+          name: me.name,
+          roundScore: me.roundScore,
+          connected: me.connected,
+          rank: null,
+          totalScore: null,
+          movement: "same",
+        },
+      ];
+    }
+    return [];
+  }
+
+  #snapshotBase() {
     const round = this.currentRound;
     const group = this.currentRoundGroup;
     const hintVisible = PLAYER_HINT_VISIBLE_STATES.has(this.state);
@@ -327,12 +354,29 @@ export class Room {
       targetPreview: originalVisible ? (round?.targetPreview ?? null) : null,
       remainingSeconds: round ? round.remainingSeconds() : this.roundSeconds,
       players: [...this.players.values()].map((p) => p.toPublic()),
-      leaderboard: this.leaderboard(),
+    };
+  }
+
+  toPublic() {
+    return {
+      ...this.#snapshotBase(),
+      leaderboard: [],
+    };
+  }
+
+  toPlayerPublic(playerId) {
+    return {
+      ...this.#snapshotBase(),
+      leaderboard: this.leaderboardForPlayer(playerId),
     };
   }
 
   toHostPublic() {
-    const publicData = this.toPublic();
+    const showStandings = this.state === GameState.GAME_FINISHED;
+    const publicData = {
+      ...this.#snapshotBase(),
+      leaderboard: showStandings ? this.leaderboard() : [],
+    };
     const entry = this.currentRoundEntry;
     const showTarget = ORIGINAL_IMAGE_VISIBLE_STATES.has(this.state);
     return {

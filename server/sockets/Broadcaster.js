@@ -1,4 +1,4 @@
-import { SocketEvents } from '../config/constants.js';
+import { GameState, SocketEvents } from '../config/constants.js';
 
 /**
  * Thin transport adapter around Socket.IO. Centralizes every outbound emit so
@@ -9,10 +9,15 @@ export class Broadcaster {
     this.io = io;
   }
 
-  /** Broadcasts the full public room snapshot to everyone in the room. */
+  /** Broadcasts room snapshots — full standings to host, redacted views to players. */
   roomState(room) {
-    this.io.to(room.code).emit(SocketEvents.ROOM_STATE, room.toPublic());
-    // Host receives an augmented snapshot including rounds and target previews.
+    for (const player of room.players.values()) {
+      if (player.socketId) {
+        this.io
+          .to(player.socketId)
+          .emit(SocketEvents.ROOM_STATE, room.toPlayerPublic(player.id));
+      }
+    }
     if (room.hostSocketId) {
       this.io.to(room.hostSocketId).emit(SocketEvents.ROOM_STATE, {
         ...room.toHostPublic(),
@@ -31,7 +36,8 @@ export class Broadcaster {
   }
 
   leaderboard(room) {
-    this.io.to(room.code).emit(SocketEvents.LEADERBOARD_UPDATE, {
+    if (!room.hostSocketId || room.state !== GameState.GAME_FINISHED) return;
+    this.io.to(room.hostSocketId).emit(SocketEvents.LEADERBOARD_UPDATE, {
       leaderboard: room.leaderboard(),
     });
   }

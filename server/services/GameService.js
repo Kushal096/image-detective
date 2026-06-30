@@ -312,7 +312,6 @@ export class GameService {
     this.bus.scoredToPlayer(player.socketId, {
       score,
       similarity,
-      totalScore: player.totalScore,
       hintReuse,
     });
     this.bus.leaderboard(room);

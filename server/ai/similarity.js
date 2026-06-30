@@ -23,13 +23,24 @@ export const cosineSimilarity = (a, b) => {
 };
 
 /**
+ * Tiered multiplier applied to accuracy (cosine similarity).
+ * Lower accuracy earns a smaller share of the base score scale.
+ */
+const accuracyMultiplier = (accuracy) => {
+  if (accuracy < 0.6) return 50;
+  if (accuracy < 0.75) return 65;
+  if (accuracy < 0.9) return 90;
+  return MAX_SCORE;
+};
+
+/**
  * Converts a cosine similarity into a round score.
- * Score = similarity × 100 (e.g. 0.9 → 90, 0.44 → 44).
- * Negative similarities clamp to 0; values above 1 clamp to MAX_SCORE.
+ * Score = accuracy × tier multiplier (e.g. 0.9 → 81, 0.95 → 95).
+ * Negative similarities clamp to 0; values above 1 clamp to 1.
  */
 export const similarityToScore = (similarity) => {
-  const clamped = Math.max(0, Math.min(1, similarity));
-  return Math.round(clamped * MAX_SCORE);
+  const accuracy = Math.max(0, Math.min(1, similarity));
+  return Math.round(accuracy * accuracyMultiplier(accuracy));
 };
 
 /**

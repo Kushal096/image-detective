@@ -1,5 +1,6 @@
 import { Trophy } from "lucide-react";
 import { Card, CardHeader } from "../../../components/ui/Card.jsx";
+import { Leaderboard } from "../../../components/game/Leaderboard.jsx";
 
 /**
  * Per-round results for the player. Shows only their own name and score
@@ -64,6 +65,16 @@ export const ResultsScreen = ({ room, playerId, lastScore, isFinal }) => {
           <p className="font-label text-[10px] uppercase tracking-widest text-text-muted mt-2">
             Last round score
           </p>
+        </Card>
+      )}
+      {isFinal && room.leaderboard.length > 0 && (
+        <Card>
+          <CardHeader title="Final Standings" />
+          <Leaderboard
+            entries={room.leaderboard}
+            highlightId={playerId}
+            crownWinner
+          />
         </Card>
       )}
     </div>

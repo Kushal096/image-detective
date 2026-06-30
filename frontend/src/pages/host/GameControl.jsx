@@ -21,8 +21,9 @@ import { GameState } from "../../services/socket/events.js";
 import { cn } from "../../utils/cn.js";
 
 /**
- * Game Control page - Screen-share friendly control panel.
- * Never displays scores or target images before a round ends.
+ * Game Control page — screen-share safe.
+ * Shows an unranked player list during play (no scores or standings).
+ * Full standings appear only on Final Tournament Results after the game ends.
  */
 export const GameControl = () => {
   const {
@@ -44,7 +45,6 @@ export const GameControl = () => {
     totalRounds,
     roundSeconds,
     players,
-    leaderboard,
     currentRoundTitle,
     currentRoundGroupTitle,
     currentSubRound,
@@ -69,6 +69,17 @@ export const GameControl = () => {
   const submittedIds = useMemo(
     () => new Set(currentSubRound?.submittedPlayerIds ?? []),
     [currentSubRound?.submittedPlayerIds],
+  );
+
+  const playerRoster = useMemo(
+    () =>
+      players.map((player) => ({
+        playerId: player.id,
+        name: player.name,
+        connected: player.connected,
+        movement: "same",
+      })),
+    [players],
   );
 
   return (
@@ -112,8 +123,9 @@ export const GameControl = () => {
                   icon={Users}
                 />
                 <Leaderboard
-                  entries={leaderboard}
+                  entries={playerRoster}
                   hideScores
+                  hideRanks
                   submittedIds={isLiveRound ? submittedIds : undefined}
                   emptyLabel="Waiting for players..."
                 />
@@ -219,16 +231,17 @@ export const GameControl = () => {
             ) : (
               <Card glow="secondary" className="min-h-[400px]">
                 <CardHeader
-                  title="Live Leaderboard"
+                  title="Players"
                   subtitle={
                     isLiveRound
                       ? "✓ = submitted this round"
-                      : "Tournament standings"
+                      : "Standings hidden until tournament ends"
                   }
                 />
                 <Leaderboard
-                  entries={leaderboard}
+                  entries={playerRoster}
                   hideScores
+                  hideRanks
                   submittedIds={isLiveRound ? submittedIds : undefined}
                   emptyLabel="No players have joined yet"
                 />
