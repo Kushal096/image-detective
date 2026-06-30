@@ -27,7 +27,7 @@ const Row = ({ entry, highlightId, isWinner, hideScores, submittedIds }) => {
         "bg-elevated/60 border-border",
         isYou && "border-secondary/60 bg-secondary/5",
         isWinner &&
-          "border-primary/70 shadow-[var(--shadow-glow)] bg-primary/5",
+          "border-primary/70 shadow-(--shadow-glow) bg-primary/5",
       )}
     >
       <span
