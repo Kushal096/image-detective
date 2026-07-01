@@ -170,4 +170,18 @@ export const registerHostHandlers = ({
   hostAction(SocketEvents.HOST_END_GAME, (room) =>
     gameService.endGame({ room }),
   );
+
+  hostAction(SocketEvents.HOST_REMOVE_PLAYER, async (room, payload) => {
+    const { playerId } = payload;
+    if (!playerId) {
+      return { error: "Player ID required", code: "INVALID_INPUT" };
+    }
+    const player = room.getPlayer(playerId);
+    if (!player) {
+      return { error: "Player not found", code: "NOT_FOUND" };
+    }
+    room.removePlayer(playerId);
+    broadcaster.roomState(room);
+    return { ok: true };
+  });
 };

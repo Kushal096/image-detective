@@ -39,6 +39,7 @@ export const SocketEvents = Object.freeze({
   HOST_NEXT_ROUND: "host:next_round",
   HOST_END_GAME: "host:end_game",
   HOST_SET_TARGET: "host:set_target",
+  HOST_REMOVE_PLAYER: "host:remove_player",
 
   // Client -> Server (Player)
   PLAYER_JOIN: "player:join",

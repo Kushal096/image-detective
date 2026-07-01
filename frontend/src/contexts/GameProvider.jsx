@@ -239,6 +239,8 @@ export const GameProvider = ({ children }) => {
       skipRound: () => hostAction(SocketEvents.HOST_SKIP_ROUND),
       nextRound: () => hostAction(SocketEvents.HOST_NEXT_ROUND),
       endGame: () => hostAction(SocketEvents.HOST_END_GAME),
+      removePlayer: (playerId) =>
+        hostAction(SocketEvents.HOST_REMOVE_PLAYER, { playerId }),
       leaveGame,
     }),
     [

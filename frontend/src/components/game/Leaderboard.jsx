@@ -6,6 +6,7 @@ import {
   Wifi,
   WifiOff,
   CheckCircle2,
+  X,
 } from "lucide-react";
 import { cn } from "../../utils/cn.js";
 
@@ -15,7 +16,7 @@ const MOVEMENT = {
   same: { icon: Minus, className: "text-text-muted" },
 };
 
-const Row = ({ entry, highlightId, isWinner, hideScores, hideRanks, submittedIds }) => {
+const Row = ({ entry, highlightId, isWinner, hideScores, hideRanks, submittedIds, canRemove, onRemove }) => {
   const Move = MOVEMENT[entry.movement] ?? MOVEMENT.same;
   const isYou = entry.playerId === highlightId;
   const hasSubmitted = submittedIds?.has(entry.playerId);
@@ -86,6 +87,20 @@ const Row = ({ entry, highlightId, isWinner, hideScores, hideRanks, submittedIds
           {entry.totalScore}
         </span>
       )}
+      {canRemove && onRemove && (
+        <button
+          onClick={() => onRemove(entry.playerId)}
+          className={cn(
+            "shrink-0 size-7 flex items-center justify-center rounded-sm",
+            "border border-border bg-elevated/40 hover:bg-danger/10 hover:border-danger/50",
+            "transition-colors duration-200 group"
+          )}
+          aria-label={`Remove ${entry.name}`}
+          title={`Remove ${entry.name}`}
+        >
+          <X className="size-4 text-text-muted group-hover:text-danger transition-colors" />
+        </button>
+      )}
     </li>
   );
 };
@@ -98,6 +113,8 @@ export const Leaderboard = ({
   hideScores = false,
   hideRanks = false,
   submittedIds,
+  canRemove = false,
+  onRemove,
 }) => {
   if (!entries.length) {
     return (
@@ -125,6 +142,8 @@ export const Leaderboard = ({
           hideScores={hideScores}
           hideRanks={hideRanks}
           submittedIds={submittedSet}
+          canRemove={canRemove}
+          onRemove={onRemove}
         />
       ))}
     </ol>

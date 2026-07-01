@@ -34,6 +34,7 @@ export const GameControl = () => {
     nextRound,
     endGame,
     identity,
+    removePlayer,
   } = useGame();
   const [showJoinInfo, setShowJoinInfo] = useState(false);
 
@@ -128,6 +129,8 @@ export const GameControl = () => {
                   hideRanks
                   submittedIds={isLiveRound ? submittedIds : undefined}
                   emptyLabel="Waiting for players..."
+                  canRemove={state === GameState.WAITING_ROOM}
+                  onRemove={removePlayer}
                 />
               </Card>
             </div>
@@ -244,6 +247,8 @@ export const GameControl = () => {
                   hideRanks
                   submittedIds={isLiveRound ? submittedIds : undefined}
                   emptyLabel="No players have joined yet"
+                  canRemove={state === GameState.WAITING_ROOM}
+                  onRemove={removePlayer}
                 />
               </Card>
             )}
